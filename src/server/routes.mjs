@@ -5,6 +5,7 @@ import { validateGitLabTokenEnvName } from '../core/orchestrator.mjs';
 import { ResearchEngine, extractKeywords, extractUrls } from '../core/research.mjs';
 import { listAgentPresets, listTemplates } from '../core/templates.mjs';
 import { GitLabClient, GitLabSyncService, translateGitLabWebhook, verifyGitLabWebhookToken } from '../gitlab/index.mjs';
+import { handlePluginApiRoute } from './plugin-routes.mjs';
 
 function parseFiniteInt(val, fallback) {
   if (val === null || val === undefined || val === '') return fallback;
@@ -156,9 +157,37 @@ export async function handleApiRoute({
       drivers: manager.driverRegistry ? manager.driverRegistry.list() : [],
       templates: listTemplates(),
       agentPresets: listAgentPresets(),
-      channelTypes: listChannelTypes()
+      channelTypes: listChannelTypes(),
+      pluginCount: manager.plugins ? manager.plugins.registry.listPlugins().filter((p) => p.enabled).length : 0,
+      connectorCount: manager.plugins ? manager.plugins.connectors.listConnectors().length : 0
     }, req);
     return true;
+  }
+
+  // v0.5.0 Plugin Ecosystem, Connectors, Skills, Hooks & External MCP Clients
+  if (
+    pathname === '/api/plugins' ||
+    pathname.startsWith('/api/plugins/') ||
+    pathname === '/api/connectors' ||
+    pathname.startsWith('/api/connectors/') ||
+    pathname === '/api/skills' ||
+    pathname.startsWith('/api/skills/') ||
+    pathname === '/api/hooks' ||
+    pathname.startsWith('/api/hooks/') ||
+    pathname === '/api/mcp-clients' ||
+    pathname.startsWith('/api/mcp-clients/') ||
+    /^\/api\/swarms\/[^/]+\/plugins\//.test(pathname)
+  ) {
+    const handledPlugin = await handlePluginApiRoute({
+      req,
+      res,
+      url,
+      manager,
+      allowCustomCli,
+      readJsonBody,
+      sendJson
+    });
+    if (handledPlugin) return true;
   }
 
   // Supported IM / Bot communication channel metadata
@@ -893,10 +922,21 @@ export async function handleApiRoute({
   if (method === 'POST' && mergeMatch) {
     const name = decodeURIComponent(mergeMatch[1]);
     const body = await readJsonBody(req);
+    if (swarm.plugins?.hooks) {
+      const preMerge = await swarm.plugins.hooks.run(
+        'PreMerge',
+        { swarmId: swarm.id, member: name, text: body.commitMessage || '' },
+        { cwd: swarm.repoPath }
+      );
+      if (!preMerge.allowed) {
+        sendJson(res, 403, { error: `PreMerge Hook 拦截合并: ${preMerge.reason}` }, req);
+        return true;
+      }
+    }
     const resMerge = swarm.worktrees.mergeToBase(name, { commitMessage: body.commitMessage });
     swarm._saveMeta();
     swarm.emit('status', swarm.getStatus());
-    sendJson(res, 200, resMerge);
+    sendJson(res, 200, resMerge, req);
     return true;
   }
 

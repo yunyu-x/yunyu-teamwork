@@ -22,6 +22,7 @@ import { ProjectWorldModel } from './world-model.mjs';
 import { WorktreeManager } from './worktree.mjs';
 import { GitLabClient } from '../gitlab/client.mjs';
 import { GitLabSyncService } from '../gitlab/sync.mjs';
+import { PluginHub } from '../plugins/hub.mjs';
 
 function sanitizeForStorage(val) {
   if (val === null || val === undefined) return val;
@@ -105,6 +106,7 @@ export class SwarmInstance extends EventEmitter {
     worktreeRoot = null,
     storage = null,
     driverRegistry = null,
+    plugins = null,
     contract = null,
     gitlab = null,
     budget = null,
@@ -122,6 +124,7 @@ export class SwarmInstance extends EventEmitter {
     this.createdAt = createdAt || new Date().toISOString();
     this.storage = storage;
     this.driverRegistry = driverRegistry;
+    this.plugins = plugins;
     this.gitlab = gitlab; // { client, projectId, sync, linkedIssueIid, linkedMrIid }
     this.members = new Map();
     this._activeDispatches = new Map(); // memberName -> Promise
@@ -138,6 +141,16 @@ export class SwarmInstance extends EventEmitter {
     this.tasks = new TaskTracker({ swarmId: id, storage });
     this.tasks.on('task', (payload) => {
       this.emit('task', payload);
+      if (this.plugins?.hooks && (payload?.op === 'update' || payload?.op === 'accept')) {
+        this.plugins.hooks
+          .run('OnIssueTransition', {
+            swarmId: this.id,
+            taskId: payload.task?.id,
+            status: payload.task?.status,
+            assignee: payload.task?.assignee
+          }, { cwd: this.repoPath })
+          .catch(() => {});
+      }
     });
     this.knowledge = new KnowledgeVault({ swarmId: id, storage });
     this.knowledge.on('knowledge', (payload) => {
@@ -212,6 +225,31 @@ export class SwarmInstance extends EventEmitter {
       this.emit('message', msg);
       this._resolveWaiters(msg);
       this._scheduleWakeups(msg);
+
+      if (this.plugins?.hooks && !msg.metadata?.noWake) {
+        this.plugins.hooks
+          .run('OnMessage', {
+            swarmId: this.id,
+            seq: msg.seq,
+            author: msg.author,
+            channel: msg.channel,
+            text: msg.text
+          }, { cwd: this.repoPath })
+          .catch(() => {});
+      }
+
+      if (this.plugins?.skills && !msg.metadata?.noWake && !msg.metadata?.commandExpanded && /^\/[a-zA-Z0-9_-]+/.test(msg.text.trim())) {
+        const matchedCmd = this.plugins.skills.matchCommand(msg.text);
+        if (matchedCmd) {
+          this.postMessage({
+            author: 'coordinator',
+            text: `⚡ 【插件斜杠命令 \`/${matchedCmd.command.name}\` 已匹配】（来源插件：\`${matchedCmd.command.pluginId}\`）\n\n${matchedCmd.command.content}${matchedCmd.args ? `\n\n参数：\`${matchedCmd.args}\`` : ''}`,
+            channel: msg.channel,
+            kind: MESSAGE_KINDS.SYSTEM,
+            metadata: { noWake: true, commandExpanded: true, pluginCommand: matchedCmd.command.id }
+          });
+        }
+      }
 
       if (this.gitlab?.sync) {
         Promise.resolve(this.gitlab.sync.onBoardMessage(this, msg)).catch((err) => {
@@ -497,6 +535,12 @@ export class SwarmInstance extends EventEmitter {
     if (RESERVED_NAMES.has(baseName)) {
       throw new Error(`成员名 "${baseName}" 为保留关键字，请更换其他名称`);
     }
+    const normRole = String(role || MEMBER_ROLES.AUTHOR).trim().toLowerCase();
+    const validRoles = new Set(Object.values(MEMBER_ROLES));
+    if (!validRoles.has(normRole)) {
+      throw new Error(`非法成员角色 "${role}"，可选：${[...validRoles].join(', ')}`);
+    }
+    role = normRole;
 
     const targets = Array.isArray(tasks) && tasks.length > 0
       ? tasks.map((slice, idx) => ({
@@ -720,6 +764,39 @@ export class SwarmInstance extends EventEmitter {
           return;
         }
 
+        // Lifecycle PreTurn hook gate (TeamAI / Claude Code / Routa Guard semantics)
+        let pluginHookContext = '';
+        if (this.plugins?.hooks) {
+          const preTurn = await this.plugins.hooks.run(
+            'PreTurn',
+            {
+              swarmId: this.id,
+              member: member.name,
+              role: member.role,
+              triggerSeq: triggerMsg.seq,
+              text: triggerMsg.text
+            },
+            { cwd: member.workspaceDir || this.repoPath }
+          );
+          if (!preTurn.allowed) {
+            if (member.killed) return;
+            member.state = MEMBER_STATES.STOPPED;
+            member.lastError = preTurn.reason;
+            this.postMessage({
+              author: 'coordinator',
+              text: `🛡️ 【生命周期 Hook 拦截】已阻止 \`${member.name}\` 执行 #${triggerMsg.seq}：${preTurn.reason}`,
+              channel: 'main',
+              kind: MESSAGE_KINDS.SYSTEM,
+              metadata: { noWake: true, hookBlocked: true, member: member.name }
+            });
+            this._saveMeta();
+            this.emit('status', this.getStatus());
+            return;
+          }
+          pluginHookContext = preTurn.additionalContext || '';
+        }
+
+        if (member.killed) return;
         member.state = MEMBER_STATES.WORKING;
         member.lastError = null;
         this.emit('status', this.getStatus());
@@ -735,7 +812,9 @@ export class SwarmInstance extends EventEmitter {
             board: this.board,
             ownership: this.ownership,
             worktrees: this.worktrees,
-            gitlab: this.gitlab
+            gitlab: this.gitlab,
+            plugins: this.plugins,
+            pluginHookContext
           });
 
           member.lastReadSeq = Math.max(member.lastReadSeq, readUpToSeq);
@@ -769,6 +848,24 @@ export class SwarmInstance extends EventEmitter {
             });
           }
 
+          if (this.plugins?.hooks) {
+            await this.plugins.hooks
+              .run(
+                'PostTurn',
+                {
+                  swarmId: this.id,
+                  member: member.name,
+                  role: member.role,
+                  triggerSeq: triggerMsg.seq,
+                  ok: true,
+                  tokensUsed: result?.tokensUsed || 0,
+                  text: String(result?.reply || '').slice(0, 600)
+                },
+                { cwd: member.workspaceDir || this.repoPath }
+              )
+              .catch(() => {});
+          }
+
           if (result?.awaitingHuman && !member.killed) {
             member.state = MEMBER_STATES.WAITING_HUMAN;
             this.emit('human_required', { swarmId: this.id, member: member.name, message: triggerMsg, reason: result.reason || null });
@@ -776,14 +873,32 @@ export class SwarmInstance extends EventEmitter {
             member.state = MEMBER_STATES.WAITING;
           }
         } catch (err) {
-          member.state = MEMBER_STATES.ERROR;
-          member.lastError = err.message || String(err);
+          if (!member.killed) {
+            member.state = MEMBER_STATES.ERROR;
+            member.lastError = err.message || String(err);
+          }
+          if (this.plugins?.hooks) {
+            await this.plugins.hooks
+              .run(
+                'PostTurn',
+                {
+                  swarmId: this.id,
+                  member: member.name,
+                  role: member.role,
+                  triggerSeq: triggerMsg.seq,
+                  ok: false,
+                  text: String(err.message || err).slice(0, 400)
+                },
+                { cwd: member.workspaceDir || this.repoPath }
+              )
+              .catch(() => {});
+          }
           this.postMessage({
             author: 'coordinator',
-            text: `⚠️ 成员 \`${member.name}\` 执行轮次异常（触发消息 #${triggerMsg.seq}）：${member.lastError}`,
+            text: `⚠️ 成员 \`${member.name}\` 执行轮次异常（触发消息 #${triggerMsg.seq}）：${member.lastError || err.message}`,
             channel: 'main',
             kind: MESSAGE_KINDS.SYSTEM,
-            metadata: { error: member.lastError, failedMember: member.name, noWake: true }
+            metadata: { error: member.lastError || err.message, failedMember: member.name, noWake: true }
           });
         } finally {
           this._saveMeta();
@@ -922,6 +1037,11 @@ export class SwarmInstance extends EventEmitter {
     }
 
     this.emit('audit', { score: report.score, passed: report.passed, summary: report.summary });
+    if (this.plugins?.hooks) {
+      this.plugins.hooks
+        .run('OnAudit', { swarmId: this.id, score: report.score, passed: report.passed, summary: report.summary }, { cwd: this.repoPath })
+        .catch(() => {});
+    }
     return { ...report, createdIssues };
   }
 
@@ -963,6 +1083,9 @@ export class SwarmInstance extends EventEmitter {
       budget: this.budget.getSummary(),
       knowledgeCount: this.knowledge.listEntries().length,
       wikiCount: this.wiki.listPages().length,
+      pluginCount: this.plugins ? this.plugins.registry.getCounts().enabledPlugins : 0,
+      skillCount: this.plugins ? this.plugins.registry.getCounts().enabledSkills : 0,
+      hookCount: this.plugins ? this.plugins.hooks.hooks.length : 0,
       worldHealthScore: this.worldModel?.snapshot?.healthScore ?? null,
       lastAuditScore: this.lastAudit?.score ?? null,
       ownership: this.ownership.toJSON(),
@@ -1003,7 +1126,8 @@ export class TeamworkManager extends EventEmitter {
     driverRegistry = null,
     defaultRepoPath = null,
     gitlabTokenResolver = null,
-    defaultGitlabToken = ''
+    defaultGitlabToken = '',
+    pluginHub = null
   } = {}) {
     super();
     this.storage = new SwarmStorage({ dataDir, inMemory });
@@ -1011,6 +1135,12 @@ export class TeamworkManager extends EventEmitter {
     this.defaultRepoPath = defaultRepoPath;
     this.gitlabTokenResolver = gitlabTokenResolver;
     this.defaultGitlabToken = defaultGitlabToken;
+    this._ownsPluginHub = !pluginHub;
+    this.plugins = pluginHub || new PluginHub({ dataDir, inMemory, repoPath: defaultRepoPath });
+    this._onPluginsChanged = (ev) => this.emit('event', { type: 'plugins_changed', swarmId: null, payload: ev });
+    this._onHookRun = (rec) => this.emit('event', { type: 'hook_run', swarmId: null, payload: rec });
+    this.plugins.on('plugins_changed', this._onPluginsChanged);
+    this.plugins.on('hook_run', this._onHookRun);
     this.swarms = new Map();
     this._restoreExisting();
   }
@@ -1027,6 +1157,7 @@ export class TeamworkManager extends EventEmitter {
           worktreeRoot: meta.worktreeRoot || null,
           storage: this.storage,
           driverRegistry: this.driverRegistry,
+          plugins: this.plugins,
           language: meta.language || DEFAULT_CONFIG.defaultLang,
           enableMonitor: !meta.done,
           createdAt: meta.createdAt
@@ -1089,6 +1220,7 @@ export class TeamworkManager extends EventEmitter {
       worktreeRoot,
       storage: this.storage,
       driverRegistry: this.driverRegistry,
+      plugins: this.plugins,
       contract: effectiveContract,
       gitlab,
       budget,
@@ -1112,6 +1244,18 @@ export class TeamworkManager extends EventEmitter {
 
     swarm._saveMeta();
     this.emit('event', { type: 'swarm_created', swarmId, payload: swarm.getStatus() });
+    if (this.plugins?.hooks) {
+      this.plugins.hooks
+        .run('SessionStart', { swarmId, title: swarm.title, repoPath: swarm.repoPath }, { cwd: swarm.repoPath })
+        .then((res) => {
+          if (swarm.repoPath && res?.results?.some((r) => r.builtinAction === 'refresh_world_model')) {
+            try {
+              if (!swarm.worldModel?.snapshot) swarm.getWorldModelOverview();
+            } catch {}
+          }
+        })
+        .catch(() => {});
+    }
     return swarm;
   }
 
@@ -1133,5 +1277,13 @@ export class TeamworkManager extends EventEmitter {
 
   disposeAll() {
     for (const s of this.swarms.values()) s.dispose();
+    if (this.plugins) {
+      this.plugins.off('plugins_changed', this._onPluginsChanged);
+      this.plugins.off('hook_run', this._onHookRun);
+      if (this._ownsPluginHub) {
+        return this.plugins.dispose?.().catch?.(() => {});
+      }
+    }
+    return Promise.resolve();
   }
 }

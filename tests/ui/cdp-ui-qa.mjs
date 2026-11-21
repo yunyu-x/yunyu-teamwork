@@ -320,6 +320,97 @@ async function run() {
     };
     report.screenshots.push(path.basename(await session.screenshot('ui_world_wiki_zh.png')));
 
+    // Verify v0.5.0 Agent Plugins, Connectors, MCP Clients, Skills & Hooks tab
+    await session.ev(`document.querySelector('[data-tab="plugins"]').click()`);
+    for (let i = 0; i < 25; i++) {
+      const ready = await session.ev(
+        `document.querySelectorAll('.plugin-conn-card').length >= 8 && document.querySelectorAll('.plugin-item-card').length >= 2`
+      );
+      if (ready) break;
+      await sleep(150);
+    }
+    const pluginsBefore = await session.ev(`(() => ({
+      connectors: document.querySelectorAll('.plugin-conn-card').length,
+      plugins: document.querySelectorAll('.plugin-item-card').length,
+      skills: document.querySelectorAll('.plugin-skill-btn').length,
+      overflowX: document.documentElement.scrollWidth > window.innerWidth
+    }))()`);
+    assert.ok(pluginsBefore.connectors >= 8, `Expected >= 8 connectors, got ${pluginsBefore.connectors}`);
+    assert.ok(pluginsBefore.plugins >= 2, `Expected >= 2 built-in plugins, got ${pluginsBefore.plugins}`);
+    assert.ok(pluginsBefore.skills >= 3, `Expected >= 3 built-in skills, got ${pluginsBefore.skills}`);
+    assert.equal(pluginsBefore.overflowX, false, 'Desktop Plugins tab must have zero horizontal overflow');
+
+    // Run Connector Dry-Run Sync preview
+    await session.ev(`document.querySelector('#btn-connector-dry-run').click()`);
+    for (let i = 0; i < 20; i++) {
+      if (await session.ev(`Boolean(document.querySelector('#connector-sync-result'))`)) break;
+      await sleep(120);
+    }
+    assert.equal(await session.ev(`Boolean(document.querySelector('#connector-sync-result'))`), true);
+
+    // Run Progressive Skill Matcher
+    await session.ev(`document.querySelector('#btn-skill-match').click()`);
+    for (let i = 0; i < 20; i++) {
+      if (await session.ev(`Boolean(document.querySelector('#skill-match-result'))`)) break;
+      await sleep(120);
+    }
+    assert.equal(await session.ev(`Boolean(document.querySelector('#skill-match-result'))`), true);
+
+    // Run Hook Simulator (default rm -rf /tmp/demo -> DENY)
+    await session.ev(`document.querySelector('#btn-hook-test').click()`);
+    for (let i = 0; i < 20; i++) {
+      if (await session.ev(`Boolean(document.querySelector('#hook-test-result'))`)) break;
+      await sleep(120);
+    }
+    const hookResultText = await session.ev(`document.querySelector('#hook-test-result')?.textContent || ''`);
+    assert.ok(hookResultText.includes('DENY'), `Expected Hook Simulator DENY result, got: ${hookResultText}`);
+
+    // Create a custom inline plugin via Web UI
+    await session.ev(`(() => {
+      document.querySelector('#pi-id').value = 'ui-custom-pack';
+      document.querySelector('#pi-name').value = '前端自定义校验插件';
+      document.querySelector('#pi-skill').value = 'ui-a11y-check';
+      document.querySelector('#btn-plugin-install').click();
+    })()`);
+    for (let i = 0; i < 20; i++) {
+      const cnt = await session.ev(`document.querySelectorAll('.plugin-item-card').length`);
+      if (cnt >= pluginsBefore.plugins + 1) break;
+      await sleep(120);
+    }
+    const pluginsAfterCreate = await session.ev(`document.querySelectorAll('.plugin-item-card').length`);
+    assert.equal(pluginsAfterCreate, pluginsBefore.plugins + 1);
+
+    // Click a Skill item to verify inline SKILL.md viewer opens & closes cleanly
+    await session.ev(`document.querySelector('[data-view-skill]').click()`);
+    for (let i = 0; i < 20; i++) {
+      if (await session.ev(`Boolean(document.querySelector('#skill-detail-box'))`)) break;
+      await sleep(120);
+    }
+    assert.equal(await session.ev(`Boolean(document.querySelector('#skill-detail-box'))`), true);
+    await session.ev(`document.querySelector('[data-close-skill-view]').click()`);
+    await sleep(100);
+    assert.equal(await session.ev(`Boolean(document.querySelector('#skill-detail-box'))`), false);
+
+    // Verify EN i18n toggle on Plugins view (zero overflow, localized headers)
+    await session.ev(`document.querySelector('#lang-toggle').click()`);
+    await sleep(150);
+    const pluginsEnText = await session.ev(`document.querySelector('#plugins-view-body')?.textContent || ''`);
+    assert.ok(pluginsEnText.includes('Cross-Harness Connector Radar'));
+    assert.ok(pluginsEnText.includes('DENY (Blocked)'));
+    await session.ev(`document.querySelector('#lang-toggle').click()`);
+    await sleep(150);
+
+    report.desktop.plugins = {
+      connectors: pluginsBefore.connectors,
+      plugins: pluginsAfterCreate,
+      dryRunSynced: true,
+      skillMatched: true,
+      skillViewerVerified: true,
+      enI18nVerified: true,
+      hookDenied: true
+    };
+    report.screenshots.push(path.basename(await session.screenshot('ui_plugins_zh.png')));
+
     // Switch to Graph tab & verify SVG nodes, edges, and timeline scrubber
     await session.ev(`document.querySelector('[data-tab="graph"]').click()`);
     await sleep(350);
@@ -456,9 +547,14 @@ async function run() {
     await sleep(250);
     const mobileWorldOverflow = await session.ev(`document.documentElement.scrollWidth > window.innerWidth`);
     assert.equal(mobileWorldOverflow, false, 'Mobile 390x844 World & Wiki must have zero horizontal overflow');
+    await session.ev(`document.querySelector('[data-tab="plugins"]').click()`);
+    await sleep(250);
+    const mobilePluginsOverflow = await session.ev(`document.documentElement.scrollWidth > window.innerWidth`);
+    assert.equal(mobilePluginsOverflow, false, 'Mobile 390x844 Plugins tab must have zero horizontal overflow');
     mobileCheck.kanbanOverflowX = mobileKanbanOverflow;
     mobileCheck.knowledgeOverflowX = mobileKnowledgeOverflow;
     mobileCheck.worldOverflowX = mobileWorldOverflow;
+    mobileCheck.pluginsOverflowX = mobilePluginsOverflow;
     report.mobile = mobileCheck;
 
     assert.equal(session.runtimeErrors.length, 0, `Runtime errors: ${JSON.stringify(session.runtimeErrors)}`);

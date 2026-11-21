@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { APP_VERSION } from '../../src/core/constants.mjs';
 import { createDemoGitRepo } from '../../src/demo/showcase-scenario.mjs';
 import { YunyuServer } from '../../src/server/app.mjs';
 
@@ -111,7 +112,7 @@ test('v0.4.0 E2E: World Model, Blast-Radius Impact, Living Wiki, Project Auditor
     };
 
     const initRpc = await callMcp('initialize');
-    assert.equal(initRpc.result.serverInfo.version, '0.4.0');
+    assert.equal(initRpc.result.serverInfo.version, APP_VERSION);
 
     const wikiRpc = await callMcp('tools/call', {
       name: 'wiki_read',

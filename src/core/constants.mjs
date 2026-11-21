@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.4.0';
+export const APP_VERSION = '0.5.0';
 
 export const MEMBER_STATES = Object.freeze({
   WAITING: 'waiting',
@@ -88,7 +88,16 @@ export const VERIFIER_FORBIDDEN_DEFAULT = Object.freeze([
   'src/**',
   'web/**',
   'app/**',
-  'lib/**'
+  'lib/**',
+  'bin/**',
+  'scripts/**',
+  'plugins/**',
+  'package.json',
+  'package-lock.json',
+  '.git/**',
+  '.claude/**',
+  '.codex/**',
+  '.cursor/**'
 ]);
 
 export const GITLAB_STATUS_LABELS = Object.freeze({

@@ -9,9 +9,18 @@ import { ProjectWorldModel } from '../src/core/world-model.mjs';
 import { isGitRepo } from '../src/core/worktree.mjs';
 import { runShowcaseDemo } from '../src/demo/showcase-scenario.mjs';
 import { GitLabClient, GitLabSyncService } from '../src/gitlab/index.mjs';
+import { PluginHub } from '../src/plugins/hub.mjs';
 import { YunyuServer } from '../src/server/app.mjs';
 
 const VERSION = APP_VERSION;
+
+const BOOLEAN_FLAGS = new Set(['once', 'json', 'dry-run', 'dryRun', 'trusted', 'force', 'help']);
+
+function toBoolFlag(val) {
+  if (typeof val === 'boolean') return val;
+  const s = String(val ?? '').trim().toLowerCase();
+  return !(s === '' || s === 'false' || s === '0' || s === 'no' || s === 'off');
+}
 
 function parseArgs(argv) {
   const args = { _: [] };
@@ -20,7 +29,9 @@ function parseArgs(argv) {
     if (tok.startsWith('--')) {
       const [key, inlineVal] = tok.slice(2).split('=');
       if (inlineVal !== undefined) {
-        args[key] = inlineVal;
+        args[key] = BOOLEAN_FLAGS.has(key) ? toBoolFlag(inlineVal) : inlineVal;
+      } else if (BOOLEAN_FLAGS.has(key)) {
+        args[key] = true;
       } else if (argv[i + 1] && !argv[i + 1].startsWith('--')) {
         args[key] = argv[++i];
       } else {
@@ -57,6 +68,10 @@ function printHelp() {
   yunyu audit [--dir <path>]  执行全仓架构、安全与工程不变量自动审计（--json 输出结构化报告）
   yunyu wiki  [--dir <path>] [--out <dir>]
                               扫描仓库世界模型并导出活文档项目 Wiki 档案（默认输出至 docs/wiki）
+  yunyu plugin <list|install|enable|disable|trust|untrust|sync> [options]
+                              管理 Agent 插件包（标准 plugin.json & TeamAI Git 仓库）并跨端同步技能/规则/MCP/Hook
+  yunyu connectors [--dir <path>] [--json]
+                              探测本机 Claude Code / Codex / Cursor / Gemini / OpenCode / Antigravity / CodeBuddy 连接器状态
   yunyu init  [--dir <path>]  在当前或目标 GitLab 仓库中初始化 CONTRACT.json 契约模板
   yunyu status [--url <url>]  查询运行中的云驭服务蜂群与成员状态
   yunyu post --swarm <id> --author <name> --text <msg> [--url <url>]
@@ -283,6 +298,94 @@ function cmdWiki(args) {
   console.log(`   仓库健康度：${snap.healthScore}/100 · 审计评分：${auditReport.score}/100\n`);
 }
 
+function cmdConnectors(args) {
+  const targetDir = path.resolve(String(args.dir || args.repo || process.cwd()));
+  const dataDir = path.resolve(String(args.data || path.join(targetDir, '.yunyu')));
+  const hub = new PluginHub({ dataDir, repoPath: targetDir });
+  const list = hub.connectors.probeConnectors({ repoPath: targetDir, force: true });
+  if (args.json) {
+    console.log(JSON.stringify({ repoPath: targetDir, connectors: list }, null, 2));
+    return;
+  }
+  console.log(`\n🔌 云驭协同跨端 Agent 连接器雷达（${targetDir}）\n`);
+  for (const c of list) {
+    const cliMark = c.installed
+      ? `✅ ${c.version || c.probeBin || 'builtin'}`
+      : c.probeBin
+        ? `⚪ 未检测到 ${c.probeBin}`
+        : '🌐 协议内置';
+    const cfgMark = c.detectedConfigs?.length ? `📁 检测到 ${c.detectedConfigs.join(', ')}` : '○ 待同步';
+    console.log(`  • ${c.name.padEnd(24)} [${c.id}]  ${cliMark}  |  ${cfgMark}`);
+  }
+  console.log('\n提示：运行 `yunyu plugin sync --harness claude-code --dry-run` 可预览 TeamAI 风格跨端配置同步。\n');
+}
+
+function cmdPlugin(args) {
+  const sub = args._[1] || 'list';
+  const targetDir = path.resolve(String(args.dir || args.repo || process.cwd()));
+  const dataDir = path.resolve(String(args.data || path.join(targetDir, '.yunyu')));
+  const hub = new PluginHub({ dataDir, repoPath: targetDir });
+
+  if (sub === 'list') {
+    const overview = hub.getOverview({ repoPath: targetDir, includeConnectors: Boolean(args.json) });
+    if (args.json) {
+      console.log(JSON.stringify(overview, null, 2));
+      return;
+    }
+    console.log(`\n🧩 云驭协同插件生态总览（${overview.plugins.length} 个插件包）\n`);
+    for (const p of overview.plugins) {
+      const flag = `${p.enabled ? '✅启用' : '⏸停用'} · ${p.trusted ? '🔓已授信' : '🔒未授信'}`;
+      console.log(
+        `  • ${p.name} (${p.id}@${p.version}) [${p.format}/${p.sourceType}] ${flag}\n` +
+          `    Skills=${p.counts.skills} Rules=${p.counts.rules} Commands=${p.counts.commands} Agents=${p.counts.agents} Hooks=${p.counts.hooks} MCP=${p.counts.mcpServers}`
+      );
+    }
+    console.log('');
+    return;
+  }
+
+  if (sub === 'install') {
+    const src = args._[2] || args.url || args.path;
+    if (!src) throw new Error('请指定插件本地目录或 TeamAI Git 仓库地址：yunyu plugin install <url-or-path>');
+    const isGit = /^(https?:\/\/|git@|ssh:\/\/)/i.test(src) || src.endsWith('.git');
+    const trusted = args.trusted !== undefined ? toBoolFlag(args.trusted) : false;
+    const plugin = isGit
+      ? hub.installFromGit(src, { id: args.id || null, branch: args.branch || null, trusted })
+      : hub.installFromLocal(src, { id: args.id || null, trusted });
+    console.log(JSON.stringify({ ok: true, id: plugin.id, format: plugin.format, trusted: plugin.trusted, skills: plugin.skills.length, hooks: plugin.hooks.length }, null, 2));
+    return;
+  }
+
+  if (sub === 'enable' || sub === 'disable' || sub === 'trust' || sub === 'untrust') {
+    const id = args._[2];
+    if (!id) throw new Error(`请指定插件 ID：yunyu plugin ${sub} <pluginId>`);
+    const patch =
+      sub === 'enable'
+        ? { enabled: true }
+        : sub === 'disable'
+          ? { enabled: false }
+          : sub === 'trust'
+            ? { trusted: true }
+            : { trusted: false };
+    const updated = hub.setPluginState(id, patch);
+    console.log(JSON.stringify({ ok: true, id: updated.id, enabled: updated.enabled, trusted: updated.trusted }, null, 2));
+    return;
+  }
+
+  if (sub === 'sync') {
+    const harnessId = String(args.harness || args._[2] || '').trim();
+    if (!harnessId) {
+      throw new Error('请指定目标连接器：yunyu plugin sync --harness <claude-code|codex-cli|cursor|gemini-cli|opencode|antigravity|codebuddy> [--dry-run]');
+    }
+    const dryRun = args['dry-run'] !== undefined ? toBoolFlag(args['dry-run']) : args.dryRun !== undefined ? toBoolFlag(args.dryRun) : false;
+    const res = hub.syncToHarness(targetDir, harnessId, { dryRun });
+    console.log(JSON.stringify(res, null, 2));
+    return;
+  }
+
+  throw new Error(`未知 plugin 子命令 "${sub}"，可选：list / install / enable / disable / trust / untrust / sync`);
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const cmd = args._[0] || 'help';
@@ -299,6 +402,13 @@ async function main() {
       break;
     case 'wiki':
       cmdWiki(args);
+      break;
+    case 'plugin':
+    case 'plugins':
+      cmdPlugin(args);
+      break;
+    case 'connectors':
+      cmdConnectors(args);
       break;
     case 'init':
       cmdInit(args);

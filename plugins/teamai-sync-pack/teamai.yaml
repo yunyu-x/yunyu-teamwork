@@ -1,0 +1,7 @@
+id: teamai-sync-pack
+displayName: TeamAI 团队资产协同包
+version: 0.5.0
+description: 兼容 Tencent teamai-cli 开源资产目录规范（skills / rules / hooks.yaml / mcp.yaml / agents / commands），支持跨 Claude Code、Codex、Cursor、Gemini、OpenCode、Antigravity、CodeBuddy 一键同步。
+author: Yunyu Teamwork
+tags: [teamai, sync, multi-harness, wiki, mcp]
+trusted: true

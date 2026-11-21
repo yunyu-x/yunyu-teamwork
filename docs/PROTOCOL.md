@@ -27,7 +27,7 @@
 ### 方式 B：HTTP JSON-RPC 2.0 模式
 服务启动后，可直接向 `POST http://127.0.0.1:4310/api/mcp` 发送标准 MCP 请求（`initialize`、`tools/list`、`tools/call`、`resources/list`、`resources/read`）。
 
-### 暴露的 30 个 MCP 工具与 2 类资源
+### 暴露的 37 个 MCP 工具与 3 类资源
 | 工具组 | 工具名 | 说明 |
 | :--- | :--- | :--- |
 | 蜂群与成员 | `swarm_list` / `swarm_create` / `swarm_status` / `swarm_add` / `swarm_kill` | 蜂群管理、招募异构成员（`share`/`branch`/`inherit`）与安全销毁 |
@@ -36,8 +36,9 @@
 | Qoder & Beads Issue | `task_list` / `task_create` / `task_update` / `issue_ready` / `issue_claim` / `issue_accept` | 6 态 Issue 流转、DAG 就绪队列、TTL 原子认领租约与验收通过 |
 | 预算与知识库 | `budget_status` / `knowledge_search` / `knowledge_save` | Token/轮次/费用预算查询、共享知识库检索与写入 |
 | 世界模型 / Wiki / 审计 | `world_model_overview` / `world_model_impact` / `wiki_list` / `wiki_read` / `wiki_upsert` / `project_audit` | 仓库拓扑总览、变更爆炸半径预测、活文档 Wiki 读写与全仓自动审计 |
+| 插件 / 技能 / Hook / 连接器 | `plugin_list` / `skill_match` / `skill_read` / `hook_test` / `connector_probe` / `mcp_connector_list` / `mcp_connector_call` | 插件生态总览、渐进式技能匹配与读取、生命周期 Hook 演练、8 大连接器探测与外部 MCP 工具调用 |
 | GitLab 联动 | `gitlab_list_issues` / `gitlab_create_mr` / `gitlab_comment_issue` | 查询 GitLab Issues、一键提 MR 与发表 Issue 评论 |
-| MCP 资源 | `yunyu://swarms/:id/board`、`yunyu://swarms/:id/wiki` | 只读拉取完整留言板与项目 Wiki 档案 |
+| MCP 资源 | `yunyu://swarms/:id/board`、`yunyu://swarms/:id/wiki`、`yunyu://plugins/catalog` | 只读拉取完整留言板、项目 Wiki 档案与插件/技能/Hook/连接器总目录 |
 
 ---
 
@@ -117,5 +118,12 @@
 | `GET /api/swarms/:id/graph?upToSeq=N&expandAll=true` | 获取时间轴回放图谱快照 |
 | `POST /api/swarms/:id/members` / `DELETE .../members/:name` | 动态招募或销毁成员 |
 | `POST /api/swarms/:id/ownership/check` | 实时校验某成员对某路径的写权限 |
-| `POST /api/swarms/:id/worktrees/:name/merge` | 经所有权审计后将隔离 Worktree 合并回主分支 |
+| `POST /api/swarms/:id/worktrees/:name/merge` | 经所有权审计与 `PreMerge` Hook 校验后将隔离 Worktree 合并回主分支 |
+| `GET /api/plugins` / `POST /api/plugins/install` | 获取插件生态总览、在线创建内联插件或安装本地/TeamAI Git 插件 |
+| `POST /api/plugins/:id/toggle` / `POST /api/plugins/:id/sync` | 启停/授信插件包或拉取 TeamAI Git 插件仓库最新提交 |
+| `GET /api/connectors` / `POST /api/connectors/sync` | 探测 8 大跨端连接器状态，预览（Dry-Run）或同步配置至工作区 |
+| `GET /api/skills` / `GET /api/skills/:id` / `POST /api/skills/match` | 列出技能/规则/命令、读取 `SKILL.md` 正文与测试渐进式技能匹配 |
+| `GET /api/hooks` / `POST /api/hooks/test` | 查询生命周期 Hooks 与追加式审计历史、运行 Hook 实时演练器 |
+| `GET/POST /api/mcp-clients` / `POST /api/mcp-clients/:id/connect\|disconnect\|call` | 注册、连接、断开或调用外部 MCP Server 工具 |
+| `POST /api/swarms/:id/plugins/spawn-agent` | 将插件声明的专职 Agent 一键招募进入指定蜂群 |
 | `POST /api/webhooks/gitlab` | 接收 GitLab Webhook 事件 |

@@ -83,22 +83,25 @@ export class OwnershipGuard {
   }
 
   setMemberRule(agentName, { role = MEMBER_ROLES.AUTHOR, owns = [], mustNotTouch = [] } = {}) {
+    const normRole = String(role || MEMBER_ROLES.AUTHOR).trim().toLowerCase();
+    const normName = String(agentName || '').trim().toLowerCase();
     const forbidden = new Set(mustNotTouch);
-    if (
-      role === MEMBER_ROLES.VERIFIER ||
-      role === MEMBER_ROLES.REVIEWER ||
-      role === MEMBER_ROLES.RESEARCHER ||
-      role === 'qa' ||
-      agentName === 'qa' ||
-      agentName === 'verifier' ||
-      agentName === 'reviewer' ||
-      agentName === 'researcher'
-    ) {
+    const isReadOnlyRole =
+      normRole === MEMBER_ROLES.VERIFIER ||
+      normRole === MEMBER_ROLES.REVIEWER ||
+      normRole === MEMBER_ROLES.RESEARCHER ||
+      normRole === 'qa' ||
+      normName === 'qa' ||
+      normName === 'verifier' ||
+      normName === 'reviewer' ||
+      normName === 'researcher';
+    if (isReadOnlyRole) {
       for (const p of VERIFIER_FORBIDDEN_DEFAULT) forbidden.add(p);
     }
     this.rules.set(agentName, {
       agent: agentName,
-      role,
+      role: normRole,
+      isReadOnlyRole,
       owns: [...owns],
       mustNotTouch: [...forbidden]
     });
@@ -164,6 +167,13 @@ export class OwnershipGuard {
           reason: `路径 "${rel}" 不在成员 @${agentName} 的独占所有权列表 [${rule.owns.join(', ')}] 内`
         };
       }
+    } else if (rule.role === MEMBER_ROLES.REVIEWER || rule.role === MEMBER_ROLES.RESEARCHER) {
+      return {
+        allowed: false,
+        path: rel,
+        rule: 'read-only-no-owns',
+        reason: `只读审查/调研角色 @${agentName} (${rule.role}) 未声明显式可写路径 owns，默认禁止写入仓库文件`
+      };
     }
 
     return { allowed: true, path: rel, reason: '通过文件所有权边界校验' };

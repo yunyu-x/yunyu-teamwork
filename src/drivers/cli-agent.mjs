@@ -57,11 +57,12 @@ export const CLI_PRESETS = Object.freeze({
         args.push('--model', assertSafeCliToken('model', member.model));
       }
       if (!isResume && cfg.sandbox !== false) {
+        const normRole = String(member.role || '').trim().toLowerCase();
         const readOnlyRole =
-          member.role === 'verifier' ||
-          member.role === 'reviewer' ||
-          member.role === 'researcher' ||
-          member.role === 'qa';
+          normRole === 'verifier' ||
+          normRole === 'reviewer' ||
+          normRole === 'researcher' ||
+          normRole === 'qa';
         const defaultSandbox = readOnlyRole ? 'read-only' : 'workspace-write';
         args.push('--sandbox', assertSafeCliToken('sandbox', cfg.sandbox || defaultSandbox));
       }
@@ -123,16 +124,22 @@ export class CliAgentDriver extends AgentDriver {
       throw new Error('cli-agent 驱动缺少 command 或已知 preset（claude-code / codex-cli / gemini-cli）');
     }
 
-    const prompt = [
+    const pluginPrompt = swarm.plugins?.skills
+      ? swarm.plugins.skills.buildPromptContext({ text: triggerMessage.text, member })
+      : '';
+    const promptParts = [
       `你是云驭协同（Yunyu Teamwork）蜂群成员 @${member.name}（角色：${member.role}）。`,
       `任务书：${member.brief || '执行分配任务'}`,
       `允许修改路径：${member.owns.join(', ') || '按契约'}；禁止修改路径：${member.mustNotTouch.join(', ') || '无'}。`,
+      pluginPrompt,
+      ctx.pluginHookContext ? `【生命周期 Hook 注入上下文】\n${ctx.pluginHookContext}` : '',
       `触发消息 #${triggerMessage.seq}（来自 ${triggerMessage.author}）：`,
       (unreadMessages.length ? unreadMessages : [triggerMessage])
         .map((m) => `#${m.seq} [${m.channel}] ${m.author}: ${m.text}`)
         .join('\n'),
       '请直接完成任务并输出清晰的简体中文交付汇报（含改动文件、测试命令结果与下一环节 @ 交接）。'
-    ].join('\n\n');
+    ].filter(Boolean);
+    const prompt = promptParts.join('\n\n');
 
     const activeSessionId = member.sessionId || cfg.sessionId || null;
     let currentSessionId = activeSessionId;
@@ -155,8 +162,11 @@ export class CliAgentDriver extends AgentDriver {
       }
 
       const finalArgs = [...prefixArgs, ...invArgs];
+      const baseEnv = { ...process.env };
+      delete baseEnv.YUNYU_API_TOKEN;
+      delete baseEnv.GITLAB_WEBHOOK_SECRET;
       const env = {
-        ...process.env,
+        ...baseEnv,
         ...(cfg.env || {}),
         YUNYU_SWARM_ID: swarm.id,
         YUNYU_AGENT_NAME: member.name,
@@ -166,7 +176,7 @@ export class CliAgentDriver extends AgentDriver {
         YUNYU_OWNED_PATHS: member.owns.join(','),
         YUNYU_FORBIDDEN_PATHS: member.mustNotTouch.join(','),
         YUNYU_SESSION_ID: sessionIdToUse || '',
-        YUNYU_PROMPT: prompt
+        YUNYU_PROMPT: prompt.slice(0, 8192)
       };
 
       const timeoutMs = cfg.timeoutMs || 180_000;

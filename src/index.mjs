@@ -15,7 +15,7 @@ export { ProjectWiki, WIKI_CATEGORIES, sanitizeWikiSlug } from './core/wiki.mjs'
 export { ProjectWorldModel } from './core/world-model.mjs';
 export { WorktreeManager, isGitRepo } from './core/worktree.mjs';
 export { CHANNEL_ADAPTERS, ChannelBridge, listChannelTypes } from './channels/index.mjs';
-export { AgentDriver, createGuardedWorkspaceTools } from './drivers/base.mjs';
+export { AgentDriver, createGuardedWorkspaceTools, invokeToolWithHooks } from './drivers/base.mjs';
 export { CliAgentDriver, CLI_PRESETS } from './drivers/cli-agent.mjs';
 export { DigitalTwinDriver } from './drivers/digital-twin.mjs';
 export { HumanAgentDriver } from './drivers/human-agent.mjs';
@@ -25,6 +25,7 @@ export { DriverRegistry, createDefaultDriverRegistry } from './drivers/registry.
 export { SimulatedAgentDriver } from './drivers/simulated-agent.mjs';
 export { WebhookAgentDriver } from './drivers/webhook-agent.mjs';
 export * from './gitlab/index.mjs';
+export * from './plugins/index.mjs';
 export { MCP_TOOLS, YunyuMcpServer } from './mcp/server.mjs';
 export { YunyuServer } from './server/app.mjs';
 export { runShowcaseDemo, createDemoGitRepo } from './demo/showcase-scenario.mjs';

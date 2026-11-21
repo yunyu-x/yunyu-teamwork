@@ -18,7 +18,9 @@ const REAL_WEB_DIR = fs.existsSync(WEB_DIR) ? fs.realpathSync(WEB_DIR) : WEB_DIR
 const SECURITY_HEADERS = Object.freeze({
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',
-  'Referrer-Policy': 'no-referrer'
+  'Referrer-Policy': 'no-referrer',
+  'Content-Security-Policy':
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
 });
 
 const MIME_TYPES = {
@@ -57,7 +59,8 @@ export class YunyuServer {
     manager = null,
     driverRegistry = null,
     channelBridge = null,
-    twinsStore = null
+    twinsStore = null,
+    pluginHub = null
   } = {}) {
     this.host = host;
     this.port = port;
@@ -73,10 +76,11 @@ export class YunyuServer {
         dataDir,
         inMemory,
         driverRegistry: this.driverRegistry,
-        defaultRepoPath: repoPath
+        defaultRepoPath: repoPath,
+        pluginHub
       });
     this.sse = new SseHub();
-    this.mcpServer = new YunyuMcpServer({ manager: this.manager });
+    this.mcpServer = new YunyuMcpServer({ manager: this.manager, allowCustomCli: this.allowCustomCli });
     this.server = null;
     this.url = '';
 
@@ -191,7 +195,7 @@ export class YunyuServer {
 
   async close() {
     this.sse.closeAll();
-    this.manager.disposeAll();
+    await this.manager.disposeAll();
     if (this.server) {
       const srv = this.server;
       this.server = null;

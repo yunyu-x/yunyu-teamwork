@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>云驭协同（Yunyu Teamwork）— 开源多 Agent 蜂群研发与 GitLab 协同平台</title>
   <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/styles/plugins.css" />
 </head>
 <body>
   <header class="topbar">
@@ -41,6 +42,10 @@
     <button type="button" class="tab-btn" data-tab="world" role="tab">
       <span id="tab-label-world">世界模型 &amp; Wiki</span>
       <span class="tab-count" id="count-wiki">0</span>
+    </button>
+    <button type="button" class="tab-btn" data-tab="plugins" role="tab">
+      <span id="tab-label-plugins">插件与生态</span>
+      <span class="tab-count" id="count-plugins">0</span>
     </button>
     <button type="button" class="tab-btn" data-tab="graph" role="tab">
       <span id="tab-label-graph">协作图谱</span>
@@ -82,6 +87,11 @@
     <!-- 2.8. Project World Model & Living Wiki Archive View -->
     <section id="panel-world" class="view-panel">
       <div id="world-view-body"></div>
+    </section>
+
+    <!-- 2.9. Agent Plugins, Connectors, MCP Clients, Skills & Hooks View -->
+    <section id="panel-plugins" class="view-panel">
+      <div id="plugins-view-body"></div>
     </section>
 
     <!-- 3. Graph + Timeline Replay View -->

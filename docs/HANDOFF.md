@@ -1,13 +1,13 @@
 # 云驭协同（Yunyu Teamwork）项目开发交接文档（HANDOFF.md）
 
-> 本文档面向**下一会话的 AI 编程智能体与核心开发者**，提供 `yunyu-teamwork` 的完整技术快照、架构契约、已踩坑记录、实测门禁状态以及 `v0.5.0` 演进路线图。
+> 本文档面向**下一会话的 AI 编程智能体与核心开发者**，提供 `yunyu-teamwork` 的完整技术快照、架构契约、已踩坑记录、实测门禁状态以及 `v0.6.0` 演进路线图。
 
 ---
 
 ## 1. 项目基础信息快照
 
 - **仓库地址**：`https://github.com/yunyu-x/yunyu-teamwork.git`（主干分支：`main`）
-- **当前版本**：`v0.4.0`
+- **当前版本**：`v0.5.0`
 - **运行环境要求**：Node.js `>= 22.0.0`、Git、Chromium/Chrome/Edge（仅 `npm run qa:ui` 需要）
 - **核心设计原则**：**零外部 npm 运行时依赖**（纯 Node 22 ESM 内置模块 + 零构建原生 ES2022 模块化 Web UI），开箱适配企业内网、离线环境与自托管 GitLab。
 
@@ -26,9 +26,12 @@ npm run demo
 # 3. 一次性冒烟测试（跑完自动释放资源退出，退出码 0）
 node bin/yunyu.mjs demo --once --port 0
 
-# 4. 全仓工程审计 & 导出活文档 Wiki 档案
+# 4. 全仓工程审计、导出活文档 Wiki 档案 & 跨端 Agent 插件/连接器管理
 npm run audit
 npm run wiki
+npm run plugins
+npm run connectors
+node bin/yunyu.mjs plugin sync --harness claude-code --dry-run
 
 # 5. 检查本机环境与异构 CLI Agent
 node bin/yunyu.mjs doctor
@@ -54,13 +57,15 @@ node bin/yunyu.mjs doctor
 | [src/core/knowledge.mjs](../src/core/knowledge.mjs) | 追加式共享项目知识库 | `KnowledgeVault`（安全 `http/https` URL 过滤 + 全文检索） |
 | [src/core/research.mjs](../src/core/research.mjs) | 零依赖多源情报采集与整合引擎 | `ResearchEngine`, `isPrivateIpOrHost`（IPv4/IPv6/DNS/重定向 SSRF 防护 + 流式字节上限） |
 | [src/core/twins-store.mjs](../src/core/twins-store.mjs) | 个人数字分身模板库持久化 | `TwinsStore`（`.yunyu/twins.json` 跨蜂群一键挂载 + 凭据脱敏） |
-| [src/core/orchestrator.mjs](../src/core/orchestrator.mjs) | 蜂群总控调度器与多蜂群管理器 | `SwarmInstance`, `TeamworkManager`（重启恢复、世界模型/Wiki/审计接入、响应密钥脱敏） |
+| [src/core/orchestrator.mjs](../src/core/orchestrator.mjs) | 蜂群总控调度器与多蜂群管理器 | `SwarmInstance`, `TeamworkManager`（重启恢复、世界模型/Wiki/审计/插件生命周期接入、响应密钥脱敏） |
+| [src/plugins/](../src/plugins/index.mjs) | Agent 插件、TeamAI 跨端连接器、MCP Client、渐进式技能与 Hook 引擎 | `PluginHub`, `PluginRegistry`, `SkillsRuntime`, `HookEngine`, `McpClientManager`, `ConnectorHub`, `parseYamlLite` |
+| [plugins/](../plugins/yunyu-engineering-pack/plugin.json) | 内置官方插件包（Agent Plugin 标准 & TeamAI 规范） | `yunyu-engineering-pack`（TDD/安全技能与命令/密钥拦截 Hooks）、`teamai-sync-pack`（TeamAI 跨端同步与 Wiki 维护官） |
 | [src/channels/](../src/channels/index.mjs) | 零依赖 6 渠道 IM / 机器人双向通信网桥 | `CHANNEL_ADAPTERS`（飞书/企微/钉钉/Telegram/Slack/通用 Webhook 验签防重放）、`ChannelBridge` |
 | [src/drivers/](../src/drivers/registry.mjs) | 7 大异构 Agent 驱动层 | `OpenAICompatibleDriver`, `CliAgentDriver`, `ResearchSynthesizerDriver`, `DigitalTwinDriver`, `WebhookAgentDriver`, `HumanAgentDriver`, `SimulatedAgentDriver` |
 | [src/gitlab/](../src/gitlab/index.mjs) | GitLab REST API v4、Webhook 路由、双向同步与模拟服务 | `GitLabClient`, `verifyGitLabWebhookToken`, `translateGitLabWebhook`, `GitLabSyncService`, `GitLabMockServer` |
-| [src/mcp/server.mjs](../src/mcp/server.mjs) | 标准 MCP JSON-RPC 2.0 服务端 | `YunyuMcpServer`, `MCP_TOOLS`（30 工具 + 2 类资源，stdio 与 HTTP `/api/mcp` 双传输） |
-| [src/server/](../src/server/app.mjs) | 零依赖 HTTP REST + SSE + 安全静态服务 | `YunyuServer`, `handleApiRoute`, `SseHub`（同源/回环 CORS、可选 `YUNYU_API_TOKEN`、`realpathSync` 静态边界） |
-| [web/](../web/index.html) | 原生暗黑双语 8 视图模块化 Web 看板 | `app.js`, `world-wiki.js`, `graph.js`, `i18n.js`, `lib/state.js`, `views/{board,kanban,knowledge,members,gitlab,contract}.js` |
+| [src/mcp/server.mjs](../src/mcp/server.mjs) | 标准 MCP JSON-RPC 2.0 服务端 | `YunyuMcpServer`, `MCP_TOOLS`（37 工具 + 3 类资源，stdio 与 HTTP `/api/mcp` 双传输） |
+| [src/server/](../src/server/app.mjs) | 零依赖 HTTP REST（含 `plugin-routes.mjs`）+ SSE + 安全静态服务 | `YunyuServer`, `handleApiRoute`, `handlePluginApiRoute`, `SseHub` |
+| [web/](../web/index.html) | 原生暗黑双语 9 视图模块化 Web 看板 | `app.js`, `world-wiki.js`, `graph.js`, `i18n.js`, `lib/state.js`, `views/{board,kanban,knowledge,members,gitlab,contract,plugins}.js`, `styles/plugins.css` |
 
 ---
 
@@ -77,10 +82,13 @@ node bin/yunyu.mjs doctor
 7. **浏览器 HTTP/1.1 6 连接池与 SSE 表单覆写**（`web/app.js`）：保持单飞合并刷新、`requestSeq` 防陈旧响应、作用域 SSE `/api/events?swarmId=...` 与编辑态保护。
 8. **内联 Markdown 代码块与 `**` 通配符冲突**（`web/lib/state.js`, `web/world-wiki.js`）：必须先对 `` `...` `` 占位编码，再执行 `**bold**` 替换。
 9. **JS 静态词法解析正则与模板表达式边界**（`src/core/world-model.mjs`, `src/core/auditor.mjs`）：必须上下文识别 `/regex/` 字面量，且安全审计必须保留 `${...}` 模板表达式扫描。
+10. **外部 MCP `capabilities` 按需枚举防 12s 超时**（`src/plugins/mcp-client.mjs`）：部分极简 MCP Server 仅声明 `capabilities: { tools: {} }` 且不响应 `resources/list`，连接时必须先检查 `caps.resources` 再发请求，同时监听进程 `exitCode !== null` 快速失败。
+11. **插件零信任自声明隔离与符号链接防护**（`src/plugins/registry.mjs`, `src/server/plugin-routes.mjs`）：工作区自动扫描或 HTTP 安装的插件必须忽略 `manifest.trusted`（强制默认 `trusted: false`），HTTP `/toggle` 授予信任必须受 `allowCustomCli` 门禁保护，且 `loadPluginDirectory` 必须通过 `lstatSync` + `realpathSync` 拒绝任何符号链接逃逸。
+12. **跨端连接器非破坏性 JSON 深度合并**（`src/plugins/connectors.mjs`）：向 `.mcp.json`、`.gemini/settings.json`、`opencode.json` 同步 MCP 配置时必须先读取既有 JSON 并仅合并 `mcpServers`/`mcp` 键，严禁覆写用户的 `theme`/`model`/`provider` 等既有配置。
 
 ---
 
-## 5. 下一阶段（v0.5.0）演进路线图
+## 5. 下一阶段（v0.6.0）演进路线图
 
 1. **GitHub Issues / PRs 双向联动适配器**：复用与 GitLab 相同的 `SyncService` 抽象，原生支持 GitHub Webhooks 与 PR 审查流。
 2. **容器化与一键自托管部署**：提供最小化 `Dockerfile`、`docker-compose.yml` 与健康检查探针，支持企业内网秒级拉起。

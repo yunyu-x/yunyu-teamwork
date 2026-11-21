@@ -37,6 +37,9 @@ jobs:
         run: |
           node bin/yunyu.mjs demo --once --port 0
           node bin/yunyu.mjs wiki --out ./tmp-wiki-smoke
+          node bin/yunyu.mjs plugin list --json
+          node bin/yunyu.mjs connectors --json
+          node bin/yunyu.mjs plugin sync --harness claude-code --dry-run
 
   ui-qa:
     name: Headless Chromium UI QA

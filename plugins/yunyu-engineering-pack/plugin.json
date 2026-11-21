@@ -1,0 +1,9 @@
+{
+  "id": "yunyu-engineering-pack",
+  "name": "云驭工程铁律与安全护栏插件包",
+  "version": "0.5.0",
+  "description": "官方标准 Agent Plugin：内置 TDD 守卫与安全代码复核技能、零外部依赖中文优先规则、PreToolUse 危险命令/密钥拦截 Hook 及安全审计官 Agent。",
+  "author": "Yunyu Teamwork",
+  "tags": ["official", "tdd", "security", "hooks", "engineering"],
+  "trusted": true
+}

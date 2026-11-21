@@ -1,0 +1,6 @@
+mcpServers:
+  yunyu-local-mcp:
+    transport: http
+    url: http://127.0.0.1:4310/api/mcp
+    description: 本地云驭协同标准 MCP JSON-RPC 2.0 网关（默认端口 4310；非默认端口可在面板下方注册自定义 URL）
+    enabled: true

@@ -1,4 +1,4 @@
-<!-- yunyu-wiki slug=api-and-protocols version=1 category=protocol updatedAt=2026-11-21T16:35:47.312Z -->
+<!-- yunyu-wiki slug=api-and-protocols version=1 category=protocol updatedAt=2026-11-21T18:01:56.155Z -->
 # 核心模块导出与协议接口清单
 
 ## 1. Node.js 内置能力依赖
@@ -29,7 +29,7 @@
 | `src/core/worktree.mjs` | `core` | `WorktreeManager`, `hasHeadCommit`, `isGitRepo` |
 | `src/core/world-model.mjs` | `core` | `ProjectWorldModel` |
 | `src/demo/showcase-scenario.mjs` | `demo` | `createDemoGitRepo`, `runShowcaseDemo` |
-| `src/drivers/base.mjs` | `drivers` | `AgentDriver`, `createGuardedWorkspaceTools`, `resolveInsideWorkspace` |
+| `src/drivers/base.mjs` | `drivers` | `AgentDriver`, `createGuardedWorkspaceTools`, `invokeToolWithHooks`, `resolveInsideWorkspace` |
 | `src/drivers/cli-agent.mjs` | `drivers` | `CLI_PRESETS`, `CliAgentDriver` |
 | `src/drivers/digital-twin.mjs` | `drivers` | `DigitalTwinDriver` |
 | `src/drivers/human-agent.mjs` | `drivers` | `HumanAgentDriver` |
@@ -45,12 +45,12 @@
 | `src/gitlab/webhook.mjs` | `gitlab` | `translateGitLabWebhook`, `verifyGitLabWebhookToken` |
 | `src/index.mjs` | `core` | `AGENT_PRESETS`, `AgentDriver`, `BudgetGovernor`, `CHANNEL_ADAPTERS`, `CLI_PRESETS`, `ChannelBridge`, `CliAgentDriver`, `DigitalTwinDriver` |
 | `src/mcp/server.mjs` | `mcp` | `MCP_TOOLS`, `YunyuMcpServer` |
+| `src/plugins/connectors.mjs` | `plugins` | `ConnectorHub`, `HARNESS_CATALOG` |
+| `src/plugins/hooks.mjs` | `plugins` | `HOOK_EVENTS`, `HookEngine` |
+| `src/plugins/hub.mjs` | `plugins` | `PluginHub` |
+| `src/plugins/index.mjs` | `plugins` | `ConnectorHub`, `HARNESS_CATALOG`, `HOOK_EVENTS`, `HookEngine`, `McpClientManager`, `PluginHub`, `PluginRegistry`, `SkillsRuntime` |
+| `src/plugins/mcp-client.mjs` | `plugins` | `McpClientManager` |
+| `src/plugins/parser.mjs` | `plugins` | `parseConfigFile`, `parseMarkdownAsset`, `parseYamlLite` |
+| `src/plugins/registry.mjs` | `plugins` | `PluginRegistry`, `redactPluginForPublic` |
+| `src/plugins/skills-runtime.mjs` | `plugins` | `SkillsRuntime` |
 | `src/server/app.mjs` | `server` | `YunyuServer` |
-| `src/server/routes.mjs` | `server` | `handleApiRoute`, `readJsonBody`, `readRawBody`, `sendJson` |
-| `src/server/sse.mjs` | `server` | `SseHub` |
-| `web/graph.js` | `web` | `colorForNode`, `renderCollaborationGraph` |
-| `web/i18n.js` | `web` | `I18N`, `t` |
-| `web/lib/state.js` | `web` | `$`, `KANBAN_ORDER`, `api`, `escapeHtml`, `formatRichText`, `formatTime`, `safeHttpUrl`, `showToast` |
-| `web/views/board.js` | `web` | `renderBoard`, `renderMessageCard` |
-| `web/views/contract.js` | `web` | `renderContract` |
-| `web/views/gitlab.js` | `web` | `loadIssueNotes`, `renderGitLab` |

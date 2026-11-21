@@ -59,9 +59,10 @@ test('YunyuMcpServer supports standard JSON-RPC 2.0 MCP initialize, tools/list, 
     assert.equal(ownResult.allowed, false);
 
     const resList = await mcp.handleRpc({ jsonrpc: '2.0', id: 6, method: 'resources/list' });
-    assert.equal(resList.result.resources.length, 2);
+    assert.equal(resList.result.resources.length, 3);
     assert.ok(resList.result.resources.some((r) => r.uri.endsWith('/board')));
     assert.ok(resList.result.resources.some((r) => r.uri.endsWith('/wiki')));
+    assert.ok(resList.result.resources.some((r) => r.uri === 'yunyu://plugins/catalog'));
 
     const boardRes = resList.result.resources.find((r) => r.uri.endsWith('/board'));
     const resRead = await mcp.handleRpc({

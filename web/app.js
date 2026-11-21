@@ -12,6 +12,7 @@ import {
   renderMembers,
   syncMemberModalDynamicFields
 } from './views/members.js';
+import { handlePluginClick, loadPluginsOverview, renderPluginsView } from './views/plugins.js';
 import { renderWorldWikiView } from './world-wiki.js';
 
 function applyStaticLabels() {
@@ -24,6 +25,7 @@ function applyStaticLabels() {
   $('#tab-label-kanban').textContent = t(L, 'tabKanban');
   if ($('#tab-label-knowledge')) $('#tab-label-knowledge').textContent = t(L, 'tabKnowledge');
   if ($('#tab-label-world')) $('#tab-label-world').textContent = t(L, 'tabWorld');
+  if ($('#tab-label-plugins')) $('#tab-label-plugins').textContent = t(L, 'tabPlugins');
   $('#tab-label-graph').textContent = t(L, 'tabGraph');
   $('#tab-label-members').textContent = t(L, 'tabMembers');
   $('#tab-label-gitlab').textContent = t(L, 'tabGitlab');
@@ -58,6 +60,12 @@ function renderTopStatus() {
   $('#count-kanban').textContent = String(state.tasks.length);
   if ($('#count-knowledge')) $('#count-knowledge').textContent = String(s?.knowledgeCount ?? state.knowledge.length);
   if ($('#count-wiki')) $('#count-wiki').textContent = String(s?.wikiCount ?? state.wikiPages.length);
+  if ($('#count-plugins')) {
+    const enabledCount = state.pluginsOverview
+      ? (state.pluginsOverview.plugins || []).filter((p) => p.enabled).length
+      : s?.pluginCount ?? 0;
+    $('#count-plugins').textContent = String(enabledCount);
+  }
   $('#count-members').textContent = String((s?.members || []).filter((m) => !m.killed).length);
   $('#count-gitlab').textContent = state.gitlab?.connected
     ? String((state.gitlab.issues?.length || 0) + (state.gitlab.mergeRequests?.length || 0))
@@ -264,6 +272,8 @@ async function refreshCurrentSwarm() {
       state.worldModel = wmData;
       state.wikiPages = wikiData.pages || [];
       if (!state.worldAudit && wmData?.lastAudit) state.worldAudit = wmData.lastAudit;
+    } else if (state.tab === 'plugins') {
+      state.pluginsOverview = await api('/api/plugins');
     }
 
     renderTopStatus();
@@ -275,6 +285,9 @@ async function refreshCurrentSwarm() {
       renderKnowledge({ renderTopStatus, refreshCurrentSwarm });
     }
     if (state.tab === 'world' && !state.wikiEditMode) renderWorldWiki();
+    if (state.tab === 'plugins' && !isEditingInside('plugins-view-body')) {
+      renderPluginsView({ renderTopStatus, refreshCurrentSwarm });
+    }
     renderMembers();
     if (!isEditingInside('gitlab-view-body')) renderGitLab({ refreshCurrentSwarm });
     if (!isEditingInside('contract-view-body')) renderContract({ refreshCurrentSwarm });
@@ -316,6 +329,9 @@ function setActiveTab(tab) {
   } else if (tab === 'world' && state.currentSwarmId) {
     renderWorldWiki();
     loadWorldWikiData().catch((err) => showToast(err.message));
+  } else if (tab === 'plugins') {
+    renderPluginsView({ renderTopStatus, refreshCurrentSwarm });
+    loadPluginsOverview({ renderTopStatus, refreshCurrentSwarm }).catch((err) => showToast(err.message));
   } else if (tab === 'knowledge' && state.currentSwarmId) {
     api(`/api/swarms/${encodeURIComponent(state.currentSwarmId)}/knowledge`)
       .then((kbData) => {
@@ -350,6 +366,19 @@ function connectSse() {
   es.addEventListener('wiki', handleUpdate);
   es.addEventListener('world_model', handleUpdate);
   es.addEventListener('audit', handleUpdate);
+  let _pluginSseTimer = null;
+  const handlePluginUpdate = () => {
+    clearTimeout(_pluginSseTimer);
+    _pluginSseTimer = setTimeout(() => {
+      if (state.tab === 'plugins' && !isEditingInside('plugins-view-body')) {
+        loadPluginsOverview({ renderTopStatus, refreshCurrentSwarm }).catch(() => {});
+      } else if (state.tab !== 'plugins') {
+        refreshCurrentSwarm().catch(() => {});
+      }
+    }, 280);
+  };
+  es.addEventListener('plugins_changed', handlePluginUpdate);
+  es.addEventListener('hook_run', handlePluginUpdate);
   es.addEventListener('swarm_created', () => refreshAll().catch(() => {}));
   es.addEventListener('agent_log', (ev) => {
     try {
@@ -373,6 +402,7 @@ function bindEvents() {
     renderKanban({ renderTopStatus, refreshCurrentSwarm, renderMemberModalHelpers });
     renderKnowledge({ renderTopStatus, refreshCurrentSwarm });
     if (state.tab === 'world') renderWorldWiki();
+    if (state.tab === 'plugins') renderPluginsView({ renderTopStatus, refreshCurrentSwarm });
     renderMembers();
     renderGitLab({ refreshCurrentSwarm });
     renderContract({ refreshCurrentSwarm });
@@ -587,6 +617,16 @@ function bindEvents() {
         state.wikiDraft = null;
         renderWorldWiki();
         return;
+      }
+
+      if (
+        ev.target.closest(
+          '#btn-plugins-refresh, #btn-connector-dry-run, #btn-connector-apply, [data-close-skill-view], [data-plugin-toggle-enabled], [data-plugin-toggle-trusted], [data-plugin-sync-git], [data-view-skill], [data-spawn-plugin-agent], [data-mcp-connect], [data-mcp-disconnect]'
+        )
+      ) {
+        if (await handlePluginClick(ev, { renderTopStatus, refreshCurrentSwarm })) {
+          return;
+        }
       }
 
       const drawerActionBtn = ev.target.closest('[data-drawer-action]');

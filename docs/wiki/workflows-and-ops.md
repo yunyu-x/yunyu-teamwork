@@ -1,15 +1,16 @@
-<!-- yunyu-wiki slug=workflows-and-ops version=1 category=operations updatedAt=2026-11-21T16:35:47.312Z -->
+<!-- yunyu-wiki slug=workflows-and-ops version=1 category=operations updatedAt=2026-11-21T18:01:56.155Z -->
 # 工程规范、测试矩阵与质量门禁
 ## 1. 自动化测试清单
 - `tests/integration/digital-twin-channels.test.mjs` (218 行 · 覆盖依赖 5 个源码模块)
 - `tests/integration/http-api-sse.test.mjs` (96 行 · 覆盖依赖 1 个源码模块)
-- `tests/integration/mcp-server.test.mjs` (79 行 · 覆盖依赖 3 个源码模块)
+- `tests/integration/mcp-server.test.mjs` (80 行 · 覆盖依赖 3 个源码模块)
 - `tests/integration/rehydrate-recovery.test.mjs` (173 行 · 覆盖依赖 5 个源码模块)
 - `tests/integration/swarm-e2e.test.mjs` (53 行 · 覆盖依赖 3 个源码模块)
 - `tests/integration/v020-api-kanban-gitlab-im.test.mjs` (209 行 · 覆盖依赖 3 个源码模块)
 - `tests/integration/v030-qoder-research-budget.test.mjs` (194 行 · 覆盖依赖 3 个源码模块)
-- `tests/integration/v040-world-wiki-audit.test.mjs` (166 行 · 覆盖依赖 2 个源码模块)
-- `tests/ui/cdp-ui-qa.mjs` (482 行 · 覆盖依赖 2 个源码模块)
+- `tests/integration/v040-world-wiki-audit.test.mjs` (167 行 · 覆盖依赖 3 个源码模块)
+- `tests/integration/v050-plugins-mcp-hooks.test.mjs` (398 行 · 覆盖依赖 2 个源码模块)
+- `tests/ui/cdp-ui-qa.mjs` (578 行 · 覆盖依赖 2 个源码模块)
 - `tests/unit/board.test.mjs` (61 行 · 覆盖依赖 2 个源码模块)
 - `tests/unit/budget-knowledge-research.test.mjs` (200 行 · 覆盖依赖 9 个源码模块)
 - `tests/unit/cli-agent-stream.test.mjs` (209 行 · 覆盖依赖 2 个源码模块)
@@ -18,6 +19,7 @@
 - `tests/unit/gitlab-webhook.test.mjs` (48 行 · 覆盖依赖 1 个源码模块)
 - `tests/unit/monitor.test.mjs` (44 行 · 覆盖依赖 1 个源码模块)
 - `tests/unit/ownership.test.mjs` (43 行 · 覆盖依赖 1 个源码模块)
+- `tests/unit/plugins-ecosystem.test.mjs` (443 行 · 覆盖依赖 1 个源码模块)
 - `tests/unit/qoder-issues-dag.test.mjs` (130 行 · 覆盖依赖 3 个源码模块)
 - `tests/unit/security-hardening.test.mjs` (295 行 · 覆盖依赖 15 个源码模块)
 - `tests/unit/worktree.test.mjs` (55 行 · 覆盖依赖 4 个源码模块)

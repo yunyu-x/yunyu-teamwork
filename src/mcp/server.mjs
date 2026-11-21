@@ -1,3 +1,4 @@
+import path from 'node:path';
 import readline from 'node:readline';
 import { APP_VERSION } from '../core/constants.mjs';
 
@@ -385,6 +386,73 @@ export const MCP_TOOLS = [
       },
       required: ['swarmId']
     }
+  },
+  {
+    name: 'plugin_list',
+    description: '列出当前已发现/已安装的 Agent 插件包（支持标准 plugin.json 与 TeamAI Git 仓库）及其技能/规则/Hook/MCP 统计',
+    inputSchema: { type: 'object', properties: {} }
+  },
+  {
+    name: 'skill_match',
+    description: '根据任务文本、文件与成员角色按渐进式披露算法匹配最相关的插件技能与适用工程规则',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        text: { type: 'string', description: '当前任务或提问文本' },
+        role: { type: 'string', description: '成员角色（author/reviewer/qa 等）' },
+        member: { type: 'string', description: '成员名（可选）' },
+        files: { type: 'array', items: { type: 'string' }, description: '相关文件路径列表（可选）' },
+        limit: { type: 'integer' }
+      },
+      required: ['text']
+    }
+  },
+  {
+    name: 'skill_read',
+    description: '按 skillId（如 yunyu-engineering-pack:tdd-guard）读取完整 SKILL.md 规程正文',
+    inputSchema: {
+      type: 'object',
+      properties: { skillId: { type: 'string' } },
+      required: ['skillId']
+    }
+  },
+  {
+    name: 'hook_test',
+    description: '在生命周期 Hook 治理引擎上模拟运行指定事件（如 PreToolUse / PreTurn），返回放行/拦截决策与上下文',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        event: { type: 'string', description: '生命周期事件名（SessionStart / PreTurn / PreToolUse / PostToolUse 等）' },
+        payload: { type: 'object', description: '模拟事件载荷（如 { tool: "run_command", input: { command: "rm -rf /" } }）' }
+      },
+      required: ['event']
+    }
+  },
+  {
+    name: 'connector_probe',
+    description: '探测本机已安装的异构编码 Agent 连接器（Claude Code / Codex / Cursor / Gemini / OpenCode / Antigravity / CodeBuddy）与项目配置状态',
+    inputSchema: {
+      type: 'object',
+      properties: { repoPath: { type: 'string' } }
+    }
+  },
+  {
+    name: 'mcp_connector_list',
+    description: '列出外部 MCP 客户端管理器中已注册的外部 MCP Server 状态与已发现工具列表',
+    inputSchema: { type: 'object', properties: {} }
+  },
+  {
+    name: 'mcp_connector_call',
+    description: '通过外部 MCP 客户端管理器调用已注册外部 MCP Server 暴露的工具',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        serverId: { type: 'string' },
+        toolName: { type: 'string' },
+        args: { type: 'object' }
+      },
+      required: ['serverId', 'toolName']
+    }
   }
 ];
 
@@ -393,8 +461,9 @@ export const MCP_TOOLS = [
  * Allows Claude Code, Antigravity, Cursor, Codex, and Windsurf to join any Swarm natively.
  */
 export class YunyuMcpServer {
-  constructor({ manager }) {
+  constructor({ manager, allowCustomCli = false }) {
     this.manager = manager;
+    this.allowCustomCli = Boolean(allowCustomCli);
   }
 
   async handleRpc(req) {
@@ -449,10 +518,33 @@ export class YunyuMcpServer {
             mimeType: 'application/json'
           });
         }
+        if (this.manager.plugins) {
+          resources.push({
+            uri: 'yunyu://plugins/catalog',
+            name: '云驭插件、技能、Hook 与跨端连接器总目录',
+            mimeType: 'application/json'
+          });
+        }
         return { jsonrpc: '2.0', id, result: { resources } };
       }
 
       if (method === 'resources/read') {
+        if (String(params.uri || '') === 'yunyu://plugins/catalog') {
+          if (!this.manager.plugins) throw new Error('插件中心未初始化');
+          return {
+            jsonrpc: '2.0',
+            id,
+            result: {
+              contents: [
+                {
+                  uri: params.uri,
+                  mimeType: 'application/json',
+                  text: JSON.stringify(this.manager.plugins.getOverview({ repoPath: this.manager.defaultRepoPath }), null, 2)
+                }
+              ]
+            }
+          };
+        }
         const boardMatch = String(params.uri || '').match(/^yunyu:\/\/swarms\/([^/]+)\/board$/);
         if (boardMatch) {
           const swarm = this._requireSwarm(boardMatch[1]);
@@ -533,7 +625,32 @@ export class YunyuMcpServer {
         return this._requireSwarm(args.swarmId).getStatus();
       case 'swarm_add': {
         const swarm = this._requireSwarm(args.swarmId);
-        const added = swarm.addMember(args);
+        const cfg = args.driverConfig && typeof args.driverConfig === 'object' ? args.driverConfig : {};
+        const hasCustomCli =
+          args.driver === 'cli-agent' &&
+          Boolean(
+            cfg.command ||
+              (Array.isArray(cfg.commandPrefixArgs) && cfg.commandPrefixArgs.length) ||
+              (Array.isArray(cfg.args) && cfg.args.length) ||
+              (cfg.env && Object.keys(cfg.env).length) ||
+              (Array.isArray(cfg.extraArgs) && cfg.extraArgs.length)
+          );
+        if (hasCustomCli && !this.allowCustomCli) {
+          throw new Error('安全拦截：通过 MCP 配置自定义 cli-agent 命令需显式开启 YUNYU_ALLOW_CUSTOM_CLI=true');
+        }
+        const added = swarm.addMember({
+          name: args.name,
+          role: args.role,
+          driver: args.driver,
+          model: args.model,
+          workspace: args.workspace,
+          owns: args.owns,
+          mustNotTouch: args.mustNotTouch,
+          channels: args.channels,
+          brief: args.brief,
+          driverConfig: cfg,
+          postBrief: args.postBrief
+        });
         return Array.isArray(added) ? added.map((m) => swarm.toPublicMember(m)) : swarm.toPublicMember(added);
       }
       case 'swarm_kill': {
@@ -561,6 +678,14 @@ export class YunyuMcpServer {
       }
       case 'worktree_merge': {
         const swarm = this._requireSwarm(args.swarmId);
+        if (swarm.plugins?.hooks) {
+          const preMerge = await swarm.plugins.hooks.run(
+            'PreMerge',
+            { swarmId: swarm.id, member: args.member, text: args.commitMessage || '' },
+            { cwd: swarm.repoPath }
+          );
+          if (!preMerge.allowed) throw new Error(`PreMerge Hook 拦截合并: ${preMerge.reason}`);
+        }
         const res = swarm.worktrees.mergeToBase(args.member, { commitMessage: args.commitMessage });
         swarm._saveMeta();
         swarm.emit('status', swarm.getStatus());
@@ -603,6 +728,80 @@ export class YunyuMcpServer {
       case 'project_audit': {
         const swarm = this._requireSwarm(args.swarmId);
         return swarm.runProjectAudit({ createIssues: Boolean(args.createIssues) });
+      }
+      case 'plugin_list': {
+        if (!this.manager.plugins) throw new Error('插件中心未初始化');
+        return await this.manager.plugins.getOverviewAsync({ repoPath: this.manager.defaultRepoPath });
+      }
+      case 'skill_match': {
+        if (!this.manager.plugins) throw new Error('插件中心未初始化');
+        const member = { name: args.member || 'mcp-client', role: args.role || 'author' };
+        const files = Array.isArray(args.files) ? args.files.map(String) : [];
+        const limit = Number(args.limit) > 0 ? Math.min(Math.trunc(Number(args.limit)), 20) : 5;
+        const matched = this.manager.plugins.skills.matchSkills({
+          text: String(args.text || ''),
+          member,
+          files,
+          limit
+        });
+        const rules = this.manager.plugins.skills.getApplicableRules({ files, role: member.role });
+        const promptBlock = this.manager.plugins.skills.buildPromptContext({
+          text: String(args.text || ''),
+          member,
+          files
+        });
+        return { matched, rules, promptBlock };
+      }
+      case 'skill_read': {
+        if (!this.manager.plugins) throw new Error('插件中心未初始化');
+        const skill = this.manager.plugins.registry.getSkill(args.skillId, { enabledOnly: true });
+        if (!skill) throw new Error(`未找到已启用的技能 "${args.skillId}"`);
+        return skill;
+      }
+      case 'hook_test': {
+        if (!this.manager.plugins) throw new Error('插件中心未初始化');
+        return await this.manager.plugins.hooks.run(
+          String(args.event || 'PreToolUse'),
+          args.payload || {},
+          { cwd: this.manager.defaultRepoPath, dryRun: !this.allowCustomCli }
+        );
+      }
+      case 'connector_probe': {
+        if (!this.manager.plugins) throw new Error('插件中心未初始化');
+        let targetRepo = this.manager.defaultRepoPath;
+        if (args.repoPath) {
+          const cand = path.resolve(String(args.repoPath));
+          const base = this.manager.defaultRepoPath ? path.resolve(this.manager.defaultRepoPath) : null;
+          const rel = base ? path.relative(base, cand) : '..';
+          if (!this.allowCustomCli && (rel.startsWith('..') || path.isAbsolute(rel))) {
+            throw new Error('安全拦截：connector_probe 仅允许探测当前受管仓库目录');
+          }
+          targetRepo = cand;
+        }
+        return {
+          connectors: await this.manager.plugins.connectors.probeConnectorsAsync({ repoPath: targetRepo })
+        };
+      }
+      case 'mcp_connector_list': {
+        if (!this.manager.plugins) throw new Error('插件中心未初始化');
+        return {
+          servers: this.manager.plugins.mcpClients.listServers(),
+          tools: this.manager.plugins.mcpClients.getAllDiscoveredTools()
+        };
+      }
+      case 'mcp_connector_call': {
+        if (!this.manager.plugins) throw new Error('插件中心未初始化');
+        const pre = await this.manager.plugins.hooks.run(
+          'PreToolUse',
+          { tool: 'mcp_connector_call', input: { serverId: args.serverId, toolName: args.toolName, args: args.args || {} } },
+          { cwd: this.manager.defaultRepoPath }
+        );
+        if (!pre.allowed) throw new Error(`生命周期 Hook 拦截外部 MCP 调用: ${pre.reason}`);
+        const out = await this.manager.plugins.mcpClients.callTool(args.serverId, args.toolName, args.args || {});
+        await this.manager.plugins.hooks
+          .run('PostToolUse', { tool: 'mcp_connector_call', ok: true }, { cwd: this.manager.defaultRepoPath })
+          .catch(() => {});
+        return out;
       }
       case 'task_list': {
         const swarm = this._requireSwarm(args.swarmId);

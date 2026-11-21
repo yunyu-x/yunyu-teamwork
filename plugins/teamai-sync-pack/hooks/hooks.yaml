@@ -1,0 +1,16 @@
+hooks:
+  - id: session-start-world-sync
+    event: SessionStart
+    matcher: "*"
+    type: builtin
+    action: refresh_world_model
+    additionalContext: 会话启动时已激活 TeamAI 资产与项目世界模型同步检查。
+    description: 会话初始化时触发 TeamAI 资产校验与世界模型同步（对标 teamai SessionStart Hook）
+  - id: warn-wip-commit
+    event: PreCommit
+    matcher: "*"
+    type: policy
+    action: warn
+    pattern: "WIP|FIXME|TODO_HACK"
+    reason: 提交信息或改动包含 WIP/FIXME 临时标记，合并主干前请清理
+    description: 提交前提醒清理临时标记

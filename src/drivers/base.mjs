@@ -11,7 +11,15 @@ const READ_ONLY_ROLES = new Set([
   'qa'
 ]);
 
-const SENSITIVE_ENV_RE = /(KEY|TOKEN|SECRET|PASSWORD|PASSWD|COOKIE|AUTH|PRIVATE)/i;
+const READ_ONLY_NAMES = new Set(['qa', 'verifier', 'reviewer', 'researcher']);
+
+function isReadOnlyMember(member) {
+  const role = String(member?.role || '').trim().toLowerCase();
+  const name = String(member?.name || '').trim().toLowerCase();
+  return READ_ONLY_ROLES.has(role) || READ_ONLY_NAMES.has(name);
+}
+
+const SENSITIVE_ENV_RE = /(KEY|TOKEN|SECRET|PASSWORD|PASSWD|COOKIE|AUTH|PRIVATE|CREDENTIAL|BEARER|DATABASE_URL|POSTGRES|REDIS|SSH_AUTH_SOCK|AWS_SESSION)/i;
 
 function sanitizeChildEnv() {
   const clean = {};
@@ -99,8 +107,13 @@ export function resolveInsideWorkspace(rootDir, relPath) {
 /**
  * Create a standardized, OwnershipGuard-enforced toolset that any LLM/script driver can invoke.
  */
-export function createGuardedWorkspaceTools({ swarm, member, ownership, worktrees, gitlab }) {
+export function createGuardedWorkspaceTools({ swarm, member, ownership, worktrees, gitlab, skipSyncHooks = false }) {
   const cwd = member.workspaceDir || swarm.repoPath;
+  const runSyncToolPolicy = (event, payload) => {
+    if (skipSyncHooks || !swarm?.plugins?.hooks) return null;
+    const pre = swarm.plugins.hooks.runSyncPolicies(event, payload);
+    return pre.allowed ? null : pre;
+  };
 
   return {
     read_file({ path: relPath, maxBytes = 32_768 }) {
@@ -135,6 +148,14 @@ export function createGuardedWorkspaceTools({ swarm, member, ownership, worktree
       if (!check.allowed) {
         return { error: `文件所有权守卫拒绝写入: ${check.reason}` };
       }
+      const blocked = runSyncToolPolicy('PreToolUse', {
+        tool: 'write_file',
+        member: member.name,
+        input: { path: rel, content: String(content ?? '').slice(0, 8000) }
+      });
+      if (blocked) {
+        return { ok: false, blockedByHook: true, error: `生命周期 Hook 拒绝写入: ${blocked.reason}` };
+      }
       fs.mkdirSync(path.dirname(absTarget), { recursive: true });
       fs.writeFileSync(absTarget, String(content ?? ''), 'utf8');
       return { ok: true, path: rel, bytes: Buffer.byteLength(String(content ?? ''), 'utf8') };
@@ -146,6 +167,14 @@ export function createGuardedWorkspaceTools({ swarm, member, ownership, worktree
       if (!check.allowed) {
         return { error: `文件所有权守卫拒绝编辑: ${check.reason}` };
       }
+      const blocked = runSyncToolPolicy('PreToolUse', {
+        tool: 'edit_file',
+        member: member.name,
+        input: { path: rel, replacement: String(replacement ?? '').slice(0, 8000) }
+      });
+      if (blocked) {
+        return { ok: false, blockedByHook: true, error: `生命周期 Hook 拒绝编辑: ${blocked.reason}` };
+      }
       if (!fs.existsSync(absTarget)) return { error: `文件不存在: ${rel}` };
       const src = fs.readFileSync(absTarget, 'utf8');
       if (!src.includes(target)) return { error: `未找到精确替换目标片段` };
@@ -156,11 +185,20 @@ export function createGuardedWorkspaceTools({ swarm, member, ownership, worktree
 
     run_command({ command, timeoutMs = 20_000 }) {
       if (!cwd) return { error: '未绑定工作区目录' };
-      if (READ_ONLY_ROLES.has(member.role) || ['qa', 'verifier', 'reviewer', 'researcher'].includes(member.name)) {
+      if (isReadOnlyMember(member)) {
         return {
           ok: false,
           error: `安全铁律拦截：只读角色 @${member.name} (${member.role}) 禁止调用任意 run_command，请改用受控的 run_verification 或 git_review_branch`
         };
+      }
+      const blocked = runSyncToolPolicy('PreToolUse', {
+        tool: 'run_command',
+        member: member.name,
+        command,
+        input: { command }
+      });
+      if (blocked) {
+        return { ok: false, blockedByHook: true, error: `生命周期 Hook 拦截命令执行: ${blocked.reason}` };
       }
       try {
         const cleanEnv = sanitizeChildEnv();
@@ -201,10 +239,16 @@ export function createGuardedWorkspaceTools({ swarm, member, ownership, worktree
     },
 
     git_commit({ message }) {
+      const blockedTool = runSyncToolPolicy('PreToolUse', { tool: 'git_commit', member: member.name, input: { message } });
+      if (blockedTool) return { ok: false, blockedByHook: true, error: `生命周期 Hook 拦截提交: ${blockedTool.reason}` };
+      const blockedCommit = runSyncToolPolicy('PreCommit', { tool: 'git_commit', member: member.name, text: message, input: { message } });
+      if (blockedCommit) return { ok: false, blockedByHook: true, error: `PreCommit Hook 拦截提交: ${blockedCommit.reason}` };
       return worktrees.commitChanges(member.name, message);
     },
 
     git_push({ remote = 'origin', force = false } = {}) {
+      const blocked = runSyncToolPolicy('PreToolUse', { tool: 'git_push', member: member.name, input: { remote, force } });
+      if (blocked) return { ok: false, blockedByHook: true, error: `生命周期 Hook 拦截推送: ${blocked.reason}` };
       return worktrees.pushBranch(member.name, { remote, force });
     },
 
@@ -349,6 +393,58 @@ export function createGuardedWorkspaceTools({ swarm, member, ownership, worktree
       return swarm.runProjectAudit({ createIssues: Boolean(createIssues), author: member.name });
     },
 
+    skill_list() {
+      if (!swarm?.plugins?.registry) return { skills: [] };
+      return {
+        skills: swarm.plugins.registry.listSkills({ enabledOnly: true }).map((s) => ({
+          id: s.id,
+          name: s.name,
+          pluginId: s.pluginId,
+          description: s.description,
+          triggers: s.triggers
+        }))
+      };
+    },
+
+    skill_match({ text = '', limit = 5 } = {}) {
+      if (!swarm?.plugins?.skills) return { matched: [] };
+      return {
+        matched: swarm.plugins.skills.matchSkills({ text, member, limit }).map((s) => ({
+          id: s.id,
+          name: s.name,
+          pluginId: s.pluginId,
+          score: s.score,
+          description: s.description
+        }))
+      };
+    },
+
+    skill_read({ skillId }) {
+      if (!swarm?.plugins?.registry) return { error: '插件中心未启用' };
+      const skill = swarm.plugins.registry.getSkill(skillId);
+      if (!skill) return { error: `未找到技能: ${skillId}` };
+      return skill;
+    },
+
+    mcp_connector_list() {
+      if (!swarm?.plugins?.mcpClients) return { servers: [], tools: [] };
+      return {
+        servers: swarm.plugins.mcpClients.listServers(),
+        tools: swarm.plugins.mcpClients.getAllDiscoveredTools()
+      };
+    },
+
+    async mcp_connector_call({ serverId, toolName, args = {} }) {
+      if (isReadOnlyMember(member)) {
+        return {
+          ok: false,
+          error: `安全铁律拦截：只读角色 @${member.name} (${member.role}) 禁止直接调用外部写操作 MCP 连接器`
+        };
+      }
+      if (!swarm?.plugins?.mcpClients) return { error: '外部 MCP 客户端管理器未启用' };
+      return await swarm.plugins.mcpClients.callTool(serverId, toolName, args);
+    },
+
     async gitlab_comment_issue({ issueIid, body }) {
       if (!gitlab?.client || !gitlab?.projectId) return { error: '未配置 GitLab 连接' };
       const note = await gitlab.client.createIssueNote(gitlab.projectId, issueIid, body);
@@ -367,4 +463,104 @@ export function createGuardedWorkspaceTools({ swarm, member, ownership, worktree
       return { ok: true, iid: mr.iid, webUrl: mr.web_url };
     }
   };
+}
+
+/**
+ * Execute a guarded workspace tool or dynamically bridged external MCP tool
+ * with full async PreToolUse / PostToolUse lifecycle hooks.
+ */
+export async function invokeToolWithHooks(tools, toolName, args = {}, { swarm = null, member = null } = {}) {
+  const cwd = member?.workspaceDir || swarm?.repoPath || null;
+
+  // Enforce Hard Invariant #3 BEFORE running hooks so read-only roles can never escalate via hooks or external MCP
+  if (isReadOnlyMember(member)) {
+    if (toolName === 'run_command') {
+      return {
+        ok: false,
+        error: `安全铁律拦截：只读角色 @${member.name} (${member.role}) 禁止调用任意 run_command，请改用受控的 run_verification 或 git_review_branch`
+      };
+    }
+    if (toolName === 'mcp_connector_call' || toolName.startsWith('mcp__')) {
+      return {
+        ok: false,
+        error: `安全铁律拦截：只读角色 @${member.name} (${member.role}) 禁止直接调用外部 MCP 工具 ${toolName}`
+      };
+    }
+  }
+
+  if (swarm?.plugins?.hooks) {
+    const pre = await swarm.plugins.hooks.run(
+      'PreToolUse',
+      {
+        swarmId: swarm?.id,
+        member: member?.name,
+        role: member?.role,
+        tool: toolName,
+        command: args?.command,
+        input: args
+      },
+      { cwd }
+    );
+    if (!pre.allowed) {
+      return {
+        ok: false,
+        blockedByHook: true,
+        error: `生命周期 Hook 拦截工具 ${toolName}: ${pre.reason}`,
+        hookResults: pre.results
+      };
+    }
+    if (toolName === 'git_commit') {
+      const preCommit = await swarm.plugins.hooks.run(
+        'PreCommit',
+        { swarmId: swarm?.id, member: member?.name, tool: 'git_commit', text: args?.message, input: args },
+        { cwd }
+      );
+      if (!preCommit.allowed) {
+        return {
+          ok: false,
+          blockedByHook: true,
+          error: `PreCommit Hook 拦截提交: ${preCommit.reason}`,
+          hookResults: preCommit.results
+        };
+      }
+    }
+  }
+
+  let output;
+  let threw = false;
+  try {
+    const fn = tools?.[toolName];
+    if (typeof fn === 'function') {
+      output = await fn(args);
+    } else if (toolName.startsWith('mcp__') && swarm?.plugins?.mcpClients) {
+      const discovered = swarm.plugins.mcpClients.getAllDiscoveredTools();
+      const match = discovered.find((t) => t.namespacedName === toolName);
+      if (!match) {
+        output = { error: `未知或未连接的外部 MCP 工具: ${toolName}` };
+      } else {
+        output = await swarm.plugins.mcpClients.callTool(match.serverId, match.toolName, args);
+      }
+    } else {
+      output = { error: `未知工具: ${toolName}` };
+    }
+    return output;
+  } catch (err) {
+    threw = true;
+    throw err;
+  } finally {
+    if (swarm?.plugins?.hooks) {
+      await swarm.plugins.hooks
+        .run(
+          'PostToolUse',
+          {
+            swarmId: swarm?.id,
+            member: member?.name,
+            tool: toolName,
+            ok: !threw && output?.ok !== false && !output?.error
+          },
+          { cwd }
+        )
+        .catch(() => {});
+    }
+  }
 }

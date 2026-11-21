@@ -1,4 +1,4 @@
-import { AgentDriver, createGuardedWorkspaceTools } from './base.mjs';
+import { AgentDriver, createGuardedWorkspaceTools, invokeToolWithHooks } from './base.mjs';
 
 const OPENAI_TOOL_SCHEMAS = [
   {
@@ -303,6 +303,62 @@ const OPENAI_TOOL_SCHEMAS = [
         properties: { createIssues: { type: 'boolean' } }
       }
     }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'skill_list',
+      description: '列出当前已启用的插件技能目录（仅摘要元数据，按需加载正文）',
+      parameters: { type: 'object', properties: {} }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'skill_match',
+      description: '根据任务关键词按渐进式披露算法匹配最相关技能',
+      parameters: {
+        type: 'object',
+        properties: { text: { type: 'string' }, limit: { type: 'integer' } },
+        required: ['text']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'skill_read',
+      description: '按 skillId 读取指定技能（SKILL.md）的完整工程规程与示例',
+      parameters: {
+        type: 'object',
+        properties: { skillId: { type: 'string' } },
+        required: ['skillId']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'mcp_connector_list',
+      description: '列出已连接的外部 MCP 连接器服务器及其动态发现的工具列表',
+      parameters: { type: 'object', properties: {} }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'mcp_connector_call',
+      description: '调用指定已连接外部 MCP 服务器的工具',
+      parameters: {
+        type: 'object',
+        properties: {
+          serverId: { type: 'string' },
+          toolName: { type: 'string' },
+          args: { type: 'object' }
+        },
+        required: ['serverId', 'toolName']
+      }
+    }
   }
 ];
 
@@ -330,8 +386,36 @@ export class OpenAICompatibleDriver extends AgentDriver {
       );
     }
 
-    const tools = createGuardedWorkspaceTools(ctx);
+    const tools = createGuardedWorkspaceTools({ ...ctx, skipSyncHooks: true });
     const worldBriefing = swarm.worldModel?.snapshot ? `\n\n${swarm.worldModel.getAgentBriefing(member.name)}` : '';
+    const pluginPrompt = swarm.plugins?.skills
+      ? swarm.plugins.skills.buildPromptContext({ text: triggerMessage.text, member })
+      : '';
+    const skillsBriefing = pluginPrompt ? `\n\n${pluginPrompt}` : '';
+    const hookBriefing = ctx.pluginHookContext ? `\n\n【生命周期 Hook 注入上下文】\n${ctx.pluginHookContext}` : '';
+
+    const isReadOnlyRole = ['verifier', 'reviewer', 'researcher', 'qa'].includes(String(member.role || '').toLowerCase());
+    const baseSchemas = isReadOnlyRole
+      ? OPENAI_TOOL_SCHEMAS.filter((s) => s.function.name !== 'mcp_connector_call' && s.function.name !== 'run_command')
+      : OPENAI_TOOL_SCHEMAS;
+    const seenToolNames = new Set(baseSchemas.map((s) => s.function.name));
+    const dynamicMcpSchemas = isReadOnlyRole
+      ? []
+      : (swarm.plugins?.mcpClients?.getAllDiscoveredTools() || [])
+          .filter((t) => !seenToolNames.has(t.namespacedName))
+          .map((t) => {
+            seenToolNames.add(t.namespacedName);
+            return {
+              type: 'function',
+              function: {
+                name: t.namespacedName,
+                description: `[外部 MCP:${t.serverId}] ${t.description || t.toolName}`,
+                parameters: t.inputSchema || { type: 'object', properties: {} }
+              }
+            };
+          });
+    const activeSchemas = [...baseSchemas, ...dynamicMcpSchemas];
+
     const systemPrompt = [
       `你是云驭协同（Yunyu Teamwork）蜂群成员 @${member.name}，角色：${member.role}。`,
       `蜂群主题：${swarm.title}。`,
@@ -342,8 +426,8 @@ export class OpenAICompatibleDriver extends AgentDriver {
       '1. 全程必须使用清晰简洁的简体中文汇报（代码标识符、路径、命令与报错原文保留英文）。',
       '2. 交接时只 @ 下一环节责任人（如 @qa 或 @coordinator），引用历史消息使用 #seq 编号。',
       '3. 若文件所有权守卫拒绝写入，严禁绕过，请在回复中说明并 @ 对应作者处理。',
-      '4. 修改核心模块前优先调用 world_model_impact 评估爆炸半径，关键决策沉淀至 wiki_upsert。'
-    ].join('\n') + worldBriefing;
+      '4. 修改核心模块前优先调用 world_model_impact 评估爆炸半径，关键决策沉淀至 wiki_upsert；需要详细规程时按需调用 skill_read。'
+    ].join('\n') + worldBriefing + skillsBriefing + hookBriefing;
 
     const historyText = (unreadMessages.length ? unreadMessages : [triggerMessage])
       .map((m) => `#${m.seq} [${m.channel}] ${m.author}: ${m.text}`)
@@ -363,16 +447,24 @@ export class OpenAICompatibleDriver extends AgentDriver {
       const headers = { 'Content-Type': 'application/json' };
       if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
 
-      const res = await fetch(`${baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          model,
-          messages,
-          tools: cfg.enableTools === false ? undefined : OPENAI_TOOL_SCHEMAS,
-          temperature: cfg.temperature ?? 0.2
-        })
-      });
+      const controller = new AbortController();
+      const reqTimer = setTimeout(() => controller.abort(), cfg.timeoutMs || 90_000);
+      let res;
+      try {
+        res = await fetch(`${baseUrl}/chat/completions`, {
+          method: 'POST',
+          headers,
+          signal: controller.signal,
+          body: JSON.stringify({
+            model,
+            messages,
+            tools: cfg.enableTools === false ? undefined : activeSchemas,
+            temperature: cfg.temperature ?? 0.2
+          })
+        });
+      } finally {
+        clearTimeout(reqTimer);
+      }
 
       if (!res.ok) {
         const errBody = await res.text();
@@ -407,11 +499,10 @@ export class OpenAICompatibleDriver extends AgentDriver {
 
       for (const tc of choice.tool_calls) {
         const fnName = tc.function?.name;
-        const fn = tools[fnName];
         let output;
         try {
           const parsedArgs = JSON.parse(tc.function?.arguments || '{}');
-          output = fn ? await fn(parsedArgs) : { error: `未知工具: ${fnName}` };
+          output = await invokeToolWithHooks(tools, fnName, parsedArgs, { swarm, member });
         } catch (err) {
           output = { error: err.message || String(err) };
         }

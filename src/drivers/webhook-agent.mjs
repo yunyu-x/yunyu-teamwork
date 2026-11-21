@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { APP_VERSION } from '../core/constants.mjs';
 import { AgentDriver } from './base.mjs';
 
 /**
@@ -36,7 +37,7 @@ export class WebhookAgentDriver extends AgentDriver {
     const body = JSON.stringify(payload);
     const headers = {
       'Content-Type': 'application/json',
-      'User-Agent': 'Yunyu-Teamwork/0.4.0',
+      'User-Agent': `Yunyu-Teamwork/${APP_VERSION}`,
       ...(cfg.headers || {})
     };
     if (cfg.secret) {

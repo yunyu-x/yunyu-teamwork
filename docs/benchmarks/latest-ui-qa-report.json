@@ -1,6 +1,6 @@
 {
-  "executedAt": "2026-11-21T16:37:21.740Z",
-  "url": "http://127.0.0.1:9992",
+  "executedAt": "2026-11-21T18:00:40.642Z",
+  "url": "http://127.0.0.1:11960",
   "desktop": {
     "board": {
       "title": "云驭协同（Yunyu Teamwork）— 开源多 Agent 蜂群研发与 GitLab 协同平台",
@@ -28,10 +28,19 @@
       "impactSimulated": true,
       "auditExecuted": true
     },
+    "plugins": {
+      "connectors": 8,
+      "plugins": 3,
+      "dryRunSynced": true,
+      "skillMatched": true,
+      "skillViewerVerified": true,
+      "enI18nVerified": true,
+      "hookDenied": true
+    },
     "graph": {
       "nodeCount": 9,
       "edgeCount": 15,
-      "stepLabel": "第 14 / 14 条 · #14 · 00:37:25",
+      "stepLabel": "第 14 / 14 条 · #14 · 02:00:44",
       "hasDetailCard": true
     },
     "membersCount": 8,
@@ -47,7 +56,8 @@
     "cardsVisible": 17,
     "kanbanOverflowX": false,
     "knowledgeOverflowX": false,
-    "worldOverflowX": false
+    "worldOverflowX": false,
+    "pluginsOverflowX": false
   },
   "screenshots": [
     "ui_board_zh.png",
@@ -55,10 +65,11 @@
     "ui_issue_drawer_zh.png",
     "ui_knowledge_zh.png",
     "ui_world_wiki_zh.png",
+    "ui_plugins_zh.png",
     "ui_graph_replay_zh.png",
     "ui_gitlab_panel.png",
     "ui_contract_worktrees.png"
   ],
   "runtimeErrors": [],
-  "durationMs": 27564
+  "durationMs": 29000
 }

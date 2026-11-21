@@ -13,5 +13,11 @@ const manager = new TeamworkManager({
   driverRegistry: createDefaultDriverRegistry()
 });
 
-const mcp = new YunyuMcpServer({ manager });
-mcp.serveStdio(process.stdin, process.stdout);
+const mcp = new YunyuMcpServer({
+  manager,
+  allowCustomCli: process.env.YUNYU_ALLOW_CUSTOM_CLI === 'true'
+});
+const rl = mcp.serveStdio(process.stdin, process.stdout);
+rl.on('close', () => {
+  Promise.resolve(manager.disposeAll()).catch(() => {});
+});

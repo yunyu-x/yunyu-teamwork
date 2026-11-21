@@ -4,6 +4,30 @@
 
 ---
 
+## [0.5.0] - 2026-11-22
+
+### Agent 插件生态 + TeamAI 跨端连接器同步 + 外部 MCP 客户端 + 渐进式技能/规则 + 生命周期 Hook 治理台
+- **双规范插件注册中心（`src/plugins/registry.mjs`, `src/plugins/parser.mjs`）**：
+  - 零外部依赖原生支持 **Agent Plugin Open Standard（`plugin.json`）** 与腾讯开源 **`Tencent/teamai-cli` Git 资产仓库规范（`teamai.yaml` / `mcp/mcp.yaml` / `hooks/hooks.yaml`）**，提供内置 YAML 子集与 Markdown Frontmatter 解析器（支持多行块标量 `|`/`|-`/`>`、紧凑列表与原型链污染防护）。
+  - 内置两大官方插件包：`plugins/yunyu-engineering-pack`（TDD 与安全审查技能、零依赖中文规则、`/preflight` 命令、破坏性命令与密钥写入拦截 Hooks、`@sec-auditor` 专职 Agent）与 `plugins/teamai-sync-pack`（TeamAI 跨端同步规程、`SessionStart`/`PreCommit` Hooks、本地 MCP 自检连接器、`@wiki-curator` 专职 Agent）。
+  - 支持本地目录、远端 Git 仓库（`git clone`/`git pull` 硬化防护）与 Web/API 在线内联创建插件，持久化启停与授信状态至 `.yunyu/plugins-state.json`。
+- **8 大异构 Agent 连接器雷达与 TeamAI 非破坏性跨端同步（`src/plugins/connectors.mjs`）**：
+  - 自动探测 **Claude Code CLI、OpenAI Codex CLI、Gemini CLI、Cursor IDE、OpenCode CLI、Antigravity (AGY)、CodeBuddy / TeamAI、标准 MCP/Webhook/ACP 网关** 8 类连接器的 CLI 版本与项目配置状态。
+  - 支持 `Dry-Run` 预览与一键将启用中的 Skills、Rules、Commands、Hooks、MCP Servers **非破坏性深度合并**至 `.claude/`、`.mcp.json`、`.codex/`、`.cursor/rules/*.mdc`、`.gemini/settings.json`、`opencode.json`、`.agent/`、`.codebuddy/`，自动剥离未授信命令与敏感环境变量。
+- **渐进式披露技能、工程规则与斜杠命令运行时（`src/plugins/skills-runtime.mjs`）**：
+  - 按任务文本、触发词、标签、角色与文件通配符动态打分匹配高相关 `SKILL.md` 与 `rules/*.md`，注入 `OpenAICompatibleDriver` 与 `CliAgentDriver` 提示词上下文，并提供 `skill_list` / `skill_match` / `skill_read` 工具供 Agent 按需深读；支持在留言板直接输入 `/preflight`、`/sync-team` 等插件斜杠命令自动展开。
+- **10 大生命周期 Hook 治理引擎与追加式审计日志（`src/plugins/hooks.mjs`）**：
+  - 覆盖 `SessionStart`、`PreTurn`、`PostTurn`、`PreToolUse`、`PostToolUse`、`OnMessage`、`PreCommit`、`PreMerge`、`OnIssueTransition`、`OnAudit` 10 类事件，支持零 Shell 确定性 `policy`/`builtin` 策略（含 ReDoS 静态防护）与双重门禁受控 `command` 脚本，所有触发历史追加持久化至 `.yunyu/hooks-audit.jsonl`。
+- **外部 MCP 客户端管理器与动态工具桥接（`src/plugins/mcp-client.mjs`）**：
+  - 支持连接外部 `http` 与受信任 `stdio` MCP Server（JSON-RPC 2.0 `initialize` / `tools/list` / `resources/list` / `tools/call`），具备单服务故障隔离、并发连接合并、SSRF/DNS/重定向拦截与环境变量脱敏；已连接外部 MCP 工具自动以 `mcp__<serverId>__<toolName>` 桥接至大模型工具集（只读角色强制隔离）。
+- **Web UI 第 9 视图「插件与生态」、MCP 37 工具与 CLI 扩展（`web/views/plugins.js`, `src/server/plugin-routes.mjs`, `src/mcp/server.mjs`, `bin/yunyu.mjs`）**：
+  - 新增第 9 视图「插件与生态（Plugins & Connectors）」，集成连接器雷达与 Dry-Run 同步器、插件包启停/授信/在线创建器、外部 MCP 连接面板、渐进式技能匹配测试器与 `SKILL.md` 阅读器、插件专职 Agent 一键招募入群、以及生命周期 Hook 实时演练器与审计流。
+  - 标准 MCP Server 扩展至 **37 个工具 + 3 类资源**（新增 `plugin_list`、`skill_match`、`skill_read`、`hook_test`、`connector_probe`、`mcp_connector_list`、`mcp_connector_call` 与 `yunyu://plugins/catalog`）；CLI 新增 `yunyu plugin <list|install|enable|disable|trust|untrust|sync>` 与 `yunyu connectors`。
+- **3 路独立审计 Agent 深度安全与架构加固**：
+  - 修复 HTTP `/toggle` 授信提权、工作区插件自声明 `trusted` 绕过、插件目录符号链接穿越、HTTP MCP 默认私网/元数据 SSRF、MCP `swarm_add` 自定义 CLI 绕过、跨端同步覆盖既有 JSON 配置、同缩进 YAML 列表与块标量 `#` 标题解析、角色大小写与只读角色外部 MCP 隔离、`OpenAICompatibleDriver` 双重 `PreToolUse` 触发等全部审计发现，全仓自动审计保持 **100/100（P0=0 / P1=0 / P2=0）**。
+
+---
+
 ## [0.4.0] - 2026-11-21
 
 ### 项目世界模型（World Model）+ 活文档 Wiki 档案 + 全仓自动审计 + 全面安全加固与前端模块化

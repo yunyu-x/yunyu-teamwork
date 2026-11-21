@@ -1,0 +1,33 @@
+{
+  "hooks": [
+    {
+      "id": "guard-destructive-shell",
+      "event": "PreToolUse",
+      "matcher": "run_command",
+      "type": "policy",
+      "action": "deny",
+      "pattern": "(?:rm\\s+-rf\\s+[/~\\\\]|git\\s+push\\s+.*--force|git\\s+reset\\s+--hard\\s+origin|format\\s+[a-z]:)",
+      "reason": "确定性安全 Hook 拦截：禁止执行破坏性根目录删除、强推或破坏性磁盘命令",
+      "description": "在调用 run_command 前拦截高危破坏性命令"
+    },
+    {
+      "id": "guard-secret-write",
+      "event": "PreToolUse",
+      "matcher": "write_file|edit_file",
+      "type": "policy",
+      "action": "deny",
+      "pattern": "(?:sk-[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9]{20,}|glpat-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----)",
+      "reason": "确定性安全 Hook 拦截：检测到疑似明文硬编码密钥/私钥写入文件，请改用环境变量",
+      "description": "在写入或编辑源码前拦截硬编码凭据泄露"
+    },
+    {
+      "id": "remind-chinese-deliverable",
+      "event": "PreTurn",
+      "matcher": "*",
+      "type": "policy",
+      "action": "inject_context",
+      "additionalContext": "【工程插件提醒】阶段交付请附改动文件清单、验证命令结果与下一环节 @ 交接。",
+      "description": "每轮唤醒前注入轻量阶段交付规范提醒"
+    }
+  ]
+}

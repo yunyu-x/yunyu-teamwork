@@ -9,14 +9,15 @@
 | 目录 / 文件 | 职责定位 | 推荐所有权角色 |
 | :--- | :--- | :--- |
 | `src/core/` | 蜂群核心引擎：不可变 JSONL 留言板、Qoder/Beads Issue 中心、预算治理、共享知识库、情报引擎、项目世界模型、活文档 Wiki、自动审计器、所有权守卫、Git Worktree 隔离、防停滞监控器、数字分身库、总控编排器 | `architect` / `core` |
+| `src/plugins/` & `plugins/` | Agent 插件与 TeamAI 生态层：双规范插件注册中心（`plugin.json` & `teamai.yaml`）、8 大跨端连接器同步器、外部 MCP 客户端管理器、渐进式 `SKILL.md`/规则/命令运行时、10 事件生命周期 Hook 引擎与官方内置插件包 | `plugins` / `core` |
 | `src/channels/` | 零依赖 6 渠道 IM / 机器人双向适配层（飞书 / 企微 / 钉钉 / Telegram / Slack / 通用 HMAC Webhook）与 `ChannelBridge` | `channels` |
 | `src/drivers/` | 7 大异构 Agent 驱动层：OpenAI 兼容、CLI Agent（Claude/Codex/Gemini 流式日志与会话复用）、Research Synthesizer、Digital Twin、Webhook、Human、Simulated | `drivers` |
 | `src/gitlab/` | GitLab REST API v4 客户端、Webhook 验签路由、双向标签/评论同步、本地 GitLab 模拟服务器 | `gitlab` |
-| `src/mcp/` & `bin/yunyu-mcp.mjs` | 标准 MCP（Model Context Protocol）JSON-RPC 2.0 服务端（30 工具 + 2 类资源） | `protocol` |
-| `src/server/` & `bin/yunyu.mjs` | 零依赖 HTTP REST API、SSE 实时事件流、CLI 启动/审计/Wiki 导出与演示入口 | `backend` |
-| `web/` | 原生暗黑双语（默认简体中文）模块化 8 视图协同看板（`app.js`, `world-wiki.js`, `graph.js`, `lib/`, `views/`） | `frontend` |
+| `src/mcp/` & `bin/yunyu-mcp.mjs` | 标准 MCP（Model Context Protocol）JSON-RPC 2.0 服务端（37 工具 + 3 类资源） | `protocol` |
+| `src/server/` & `bin/yunyu.mjs` | 零依赖 HTTP REST API（含插件生态专用路由 `plugin-routes.mjs`）、SSE 实时事件流、CLI 启动/审计/Wiki/插件/连接器与演示入口 | `backend` |
+| `web/` | 原生暗黑双语（默认简体中文）模块化 9 视图协同看板（`app.js`, `world-wiki.js`, `graph.js`, `lib/`, `views/`, `styles/`） | `frontend` |
 | `tests/` & `scripts/` | 单元测试、安全加固回归测试、端到端集成测试、无头 Chrome CDP UI 审计与语法直检（**QA/Verifier/Reviewer/Researcher 严禁编辑 `src/` 和 `web/`**） | `qa` |
-| `docs/` & `examples/` | 架构文档、协议规范、行业对标、自动导出的活文档 Wiki（`docs/wiki/`）、演示配置 | `release` / `docs` |
+| `docs/` & `examples/` | 架构文档、协议规范、插件与 TeamAI 指南、行业对标、自动导出的活文档 Wiki（`docs/wiki/`）、演示配置 | `release` / `docs` |
 
 ---
 
@@ -36,7 +37,7 @@
 ```bash
 npm run check            # 全部 .mjs / .js 语法直检（< 1s）
 npm test                 # 单元测试 + 安全加固回归 + 真实 Git Worktree + GitLab Mock + MCP + SSE 集成测试
-npm run qa:ui            # 无头 Chrome CDP Web UI（1440x900 桌面 + 390x844 手机）全 8 视图零重叠/零报错验收
+npm run qa:ui            # 无头 Chrome CDP Web UI（1440x900 桌面 + 390x844 手机）全 9 视图零重叠/零报错验收
 npm run audit            # 全仓多视角工程不变量、安全与依赖拓扑自动审计（100/100）
 npm run verify           # 完整一键门禁（check + test + qa:ui + audit）
 ```

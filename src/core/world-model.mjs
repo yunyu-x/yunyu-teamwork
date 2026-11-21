@@ -22,6 +22,8 @@ const DOC_EXTS = new Set(['.md', '.json', '.html', '.css', '.yml', '.yaml']);
 
 const DOMAIN_LABELS = {
   core: '蜂群核心引擎 (src/core)',
+  plugins: 'Agent 插件与生态层 (src/plugins)',
+  pluginPacks: '内置插件资产包 (plugins)',
   drivers: '异构 Agent 驱动层 (src/drivers)',
   channels: 'IM 与通信通道层 (src/channels)',
   gitlab: 'GitLab 双向集成层 (src/gitlab)',
@@ -53,6 +55,7 @@ function classifyDomain(relPath) {
   if (parts.length === 1) return 'root';
   if (parts[0] === 'src' && parts.length >= 3) return parts[1];
   if (parts[0] === 'src') return 'core';
+  if (parts[0] === 'plugins') return 'pluginPacks';
   if (DOMAIN_LABELS[parts[0]]) return parts[0];
   return parts[0] || 'root';
 }
