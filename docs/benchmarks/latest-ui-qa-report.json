@@ -1,6 +1,6 @@
 {
-  "executedAt": "2026-11-21T13:23:47.518Z",
-  "url": "http://127.0.0.1:2142",
+  "executedAt": "2026-11-21T13:37:17.971Z",
+  "url": "http://127.0.0.1:8734",
   "desktop": {
     "board": {
       "title": "云驭协同（Yunyu Teamwork）— 开源多 Agent 蜂群研发与 GitLab 协同平台",
@@ -12,7 +12,7 @@
     "graph": {
       "nodeCount": 8,
       "edgeCount": 11,
-      "stepLabel": "第 13 / 13 条 · #13 · 21:23:47",
+      "stepLabel": "第 13 / 13 条 · #13 · 21:37:17",
       "hasDetailCard": true
     },
     "membersCount": 7,
@@ -32,5 +32,5 @@
     "ui_contract_worktrees.png"
   ],
   "runtimeErrors": [],
-  "durationMs": 20616
+  "durationMs": 20446
 }

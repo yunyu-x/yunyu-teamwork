@@ -463,8 +463,8 @@ test('TokenBucketLimiter enforces capacity, time refill, and positive cost', () 
     repoDir: targetRepo,
     cleanup: async () => {
       swarm.dispose();
-      if (!keepOpen && !gitlabMock) await mock.close();
-      if (ownedRepo && !keepOpen) {
+      if (!gitlabMock) await mock.close();
+      if (ownedRepo) {
         try {
           fs.rmSync(targetRepo, { recursive: true, force: true });
         } catch {}

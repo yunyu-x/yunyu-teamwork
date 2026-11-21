@@ -8,7 +8,7 @@
 [![GitLab](https://img.shields.io/badge/GitLab-API%20v4%20%2B%20Webhooks-fb923c.svg)](docs/GITLAB_INTEGRATION.md)
 [![MCP](https://img.shields.io/badge/MCP-JSON--RPC%202.0-a78bfa.svg)](docs/PROTOCOL.md)
 
-[English README](README.en.md) · [系统架构深潜](docs/ARCHITECTURE.md) · [异构 Agent 与 MCP 接入协议](docs/PROTOCOL.md) · [GitLab 集成指南](docs/GITLAB_INTEGRATION.md) · [工程契约 AGENTS.md](AGENTS.md)
+[English README](README.en.md) · [系统架构深潜](docs/ARCHITECTURE.md) · [异构 Agent 与 MCP 接入协议](docs/PROTOCOL.md) · [GitLab 集成指南](docs/GITLAB_INTEGRATION.md) · [开发交接与路线图 HANDOFF.md](docs/HANDOFF.md) · [工程契约 AGENTS.md](AGENTS.md)
 
 ---
 

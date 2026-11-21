@@ -141,8 +141,12 @@ export class YunyuServer {
     this.sse.closeAll();
     this.manager.disposeAll();
     if (this.server) {
-      await new Promise((resolve) => this.server.close(resolve));
+      const srv = this.server;
       this.server = null;
+      await new Promise((resolve) => {
+        srv.close(resolve);
+        srv.closeAllConnections?.();
+      });
     }
   }
 }

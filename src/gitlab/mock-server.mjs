@@ -92,8 +92,12 @@ export class GitLabMockServer {
 
   async close() {
     if (!this.server) return;
-    await new Promise((resolve) => this.server.close(resolve));
+    const srv = this.server;
     this.server = null;
+    await new Promise((resolve) => {
+      srv.close(resolve);
+      srv.closeAllConnections?.();
+    });
   }
 
   async _readJson(req) {
