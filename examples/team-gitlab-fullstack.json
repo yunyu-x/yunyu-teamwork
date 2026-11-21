@@ -1,0 +1,62 @@
+{
+  "title": "GitLab 全栈研发多 Agent 协同团队",
+  "templateId": "gitlab-fullstack",
+  "language": "zh-CN",
+  "gitlab": {
+    "baseUrl": "https://gitlab.example.com",
+    "projectId": "platform/order-service",
+    "defaultBranch": "main",
+    "webhookLabels": ["agent::ready"]
+  },
+  "members": [
+    {
+      "name": "coordinator",
+      "role": "coordinator",
+      "driver": "human",
+      "workspace": "inherit",
+      "channels": ["main", "backend", "frontend", "qa"]
+    },
+    {
+      "name": "architect",
+      "role": "architect",
+      "driver": "openai-compatible",
+      "model": "deepseek-reasoner",
+      "workspace": "share",
+      "owns": ["docs/**", "CONTRACT.json"],
+      "channels": ["main", "backend", "frontend"]
+    },
+    {
+      "name": "backend",
+      "role": "author",
+      "driver": "cli-agent",
+      "driverConfig": { "preset": "claude-code" },
+      "model": "claude-sonnet-4",
+      "workspace": "share",
+      "owns": ["src/**"],
+      "mustNotTouch": ["web/**", "tests/**"],
+      "channels": ["main", "backend"]
+    },
+    {
+      "name": "frontend",
+      "role": "author",
+      "driver": "cli-agent",
+      "driverConfig": { "preset": "codex-cli" },
+      "model": "gpt-5-codex",
+      "workspace": "share",
+      "owns": ["web/**"],
+      "mustNotTouch": ["src/**", "tests/**"],
+      "channels": ["main", "frontend"]
+    },
+    {
+      "name": "qa",
+      "role": "verifier",
+      "driver": "cli-agent",
+      "driverConfig": { "preset": "gemini-cli" },
+      "model": "gemini-2.5-pro",
+      "workspace": "inherit",
+      "owns": ["tests/**"],
+      "mustNotTouch": ["src/**", "web/**"],
+      "channels": ["main", "qa"]
+    }
+  ]
+}

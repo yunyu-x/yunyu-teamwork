@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>云驭协同（Yunyu Teamwork）— 开源多 Agent 蜂群研发与 GitLab 协同平台</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand-group">
+      <div class="brand-logo" aria-hidden="true">驭</div>
+      <div class="brand-title-wrap">
+        <div class="brand-row">
+          <span class="brand-name" id="brand-name">云驭协同</span>
+          <select id="swarm-select" class="swarm-select" aria-label="选择蜂群"></select>
+        </div>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <span class="live-pill" id="live-status-pill"><span class="live-dot"></span><span>实时在线</span></span>
+      <button type="button" class="btn primary" id="btn-add-member">+ 招募 Agent</button>
+      <button type="button" class="btn" id="btn-new-swarm">+ 新建蜂群</button>
+      <button type="button" class="btn small" id="lang-toggle">EN</button>
+    </div>
+  </header>
+
+  <nav class="subnav" role="tablist" aria-label="功能视图切换">
+    <button type="button" class="tab-btn active" data-tab="board" role="tab">
+      <span id="tab-label-board">看板</span>
+      <span class="tab-count" id="count-board">0</span>
+    </button>
+    <button type="button" class="tab-btn" data-tab="graph" role="tab">
+      <span id="tab-label-graph">协作图谱</span>
+    </button>
+    <button type="button" class="tab-btn" data-tab="members" role="tab">
+      <span id="tab-label-members">成员名册</span>
+      <span class="tab-count" id="count-members">0</span>
+    </button>
+    <button type="button" class="tab-btn" data-tab="gitlab" role="tab">
+      <span id="tab-label-gitlab">GitLab 项目</span>
+      <span class="tab-count" id="count-gitlab">0</span>
+    </button>
+    <button type="button" class="tab-btn" data-tab="contract" role="tab">
+      <span id="tab-label-contract">契约与工作树</span>
+    </button>
+  </nav>
+
+  <main class="main-wrap">
+    <!-- 1. Board View -->
+    <section id="panel-board" class="view-panel active">
+      <div class="toolbar">
+        <input type="search" id="board-search" class="search-input" placeholder="搜索留言内容、成员名或 #序号..." />
+        <div class="pill-group" id="channel-pills"></div>
+        <div class="pill-group" id="kind-pills"></div>
+      </div>
+      <div class="msg-list" id="board-messages"></div>
+    </section>
+
+    <!-- 2. Graph + Timeline Replay View -->
+    <section id="panel-graph" class="view-panel">
+      <div class="graph-controls">
+        <div class="graph-scrubber-row">
+          <button type="button" class="btn small" id="graph-first-btn" title="回到第 1 条">|&lt;</button>
+          <button type="button" class="btn small" id="graph-prev-btn" title="上一步">&lt;</button>
+          <button type="button" class="btn small primary" id="graph-play-btn" title="播放/暂停">▶</button>
+          <button type="button" class="btn small" id="graph-next-btn" title="下一步">&gt;</button>
+          <input type="range" id="graph-slider" class="graph-slider" min="0" max="0" value="0" aria-label="时间轴回放进度条" />
+          <button type="button" class="btn small" id="graph-live-btn">最新</button>
+        </div>
+        <div class="graph-options-row">
+          <span id="graph-step-label" style="font-family:var(--mono);color:var(--text);">0 / 0</span>
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <label class="graph-toggle"><input type="checkbox" id="graph-hide-inactive" /><span id="lbl-hide-inactive">隐藏非活跃</span></label>
+            <label class="graph-toggle"><input type="checkbox" id="graph-expand-all" /><span id="lbl-expand-all">展开 @all</span></label>
+            <select id="graph-speed" class="composer-select" aria-label="回放倍速">
+              <option value="0.5">0.5x</option>
+              <option value="1" selected>1x</option>
+              <option value="2">2x</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="graph-canvas-wrap">
+        <svg id="graph-svg" class="graph-svg" role="img" aria-label="多 Agent 协作拓扑图"></svg>
+        <div class="graph-legend">
+          <span>──▶ <span id="legend-mention">@提及（线宽=次数）</span></span>
+          <span style="color:var(--amber);">╌╌▶ <span id="legend-all">经由 @all 广播</span></span>
+          <span style="color:var(--accent);">◎ <span id="legend-active">当前发言节点</span></span>
+        </div>
+      </div>
+
+      <div id="graph-detail"></div>
+    </section>
+
+    <!-- 3. Members View -->
+    <section id="panel-members" class="view-panel">
+      <div class="card-grid" id="members-grid"></div>
+    </section>
+
+    <!-- 4. GitLab Project Management View -->
+    <section id="panel-gitlab" class="view-panel">
+      <div id="gitlab-view-body"></div>
+    </section>
+
+    <!-- 5. Ownership Contract & Worktrees View -->
+    <section id="panel-contract" class="view-panel">
+      <div id="contract-view-body"></div>
+    </section>
+  </main>
+
+  <!-- Sticky Human Composer -->
+  <footer class="composer" id="composer-bar">
+    <div class="composer-inner">
+      <div class="composer-chips" id="composer-mentions"></div>
+      <div class="composer-row">
+        <select id="composer-channel" class="composer-select" aria-label="发布频道"></select>
+        <input type="text" id="composer-text" class="composer-input" placeholder="以人类成员身份发帖，输入 @成员名 即可精准唤醒对应 Agent..." />
+        <button type="button" class="btn primary" id="composer-send">发送消息</button>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Modal: Add Heterogeneous Member -->
+  <div class="modal-backdrop" id="modal-member">
+    <div class="modal-card">
+      <h3 id="modal-member-title">招募异构 Agent 加入蜂群</h3>
+      <form id="form-add-member">
+        <div class="form-field">
+          <label for="m-name">成员名称（小写，如 reviewer / mobile-dev）</label>
+          <input id="m-name" required pattern="[a-z][a-z0-9_-]*" placeholder="security-qa" />
+        </div>
+        <div class="two-col" style="gap:10px;">
+          <div class="form-field">
+            <label for="m-role">职责角色</label>
+            <select id="m-role">
+              <option value="author">研发作者 (author)</option>
+              <option value="architect">架构师 (architect)</option>
+              <option value="verifier">独立 QA (verifier · 禁改 src/)</option>
+              <option value="release">发布官 (release)</option>
+              <option value="human">人类工程师 (human)</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label for="m-driver">异构接入驱动</label>
+            <select id="m-driver">
+              <option value="simulated">内置演练驱动 (simulated)</option>
+              <option value="openai-compatible">OpenAI / DeepSeek / Ollama</option>
+              <option value="cli-agent">CLI Agent (Claude / Codex / Gemini)</option>
+              <option value="webhook">HTTP Webhook (Dify / LangGraph)</option>
+              <option value="human">人类人工接入 (human)</option>
+            </select>
+          </div>
+        </div>
+        <div class="two-col" style="gap:10px;">
+          <div class="form-field">
+            <label for="m-model">模型 / 标识</label>
+            <input id="m-model" placeholder="deepseek-reasoner / claude-sonnet-4" />
+          </div>
+          <div class="form-field">
+            <label for="m-workspace">Git 工作区模式</label>
+            <select id="m-workspace">
+              <option value="inherit">inherit（共享主目录 / 只读审计）</option>
+              <option value="share">share（独立 git worktree 分支）</option>
+              <option value="branch">branch（完全隔离 clone）</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-field">
+          <label for="m-owns">独占可写路径（逗号分隔 glob）</label>
+          <input id="m-owns" placeholder="src/security/**, docs/reviews/**" />
+        </div>
+        <div class="form-field">
+          <label for="m-forbid">严禁触碰路径（逗号分隔 glob）</label>
+          <input id="m-forbid" placeholder="web/**, dist/**" />
+        </div>
+        <div class="form-field">
+          <label for="m-brief">中文公开任务书（Brief）</label>
+          <textarea id="m-brief" rows="3" required placeholder="请用简体中文写明职责范围、禁止触碰文件以及完成验收标准..."></textarea>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn" id="btn-close-member">取消</button>
+          <button type="submit" class="btn primary">招募并发布任务书</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Create New Swarm -->
+  <div class="modal-backdrop" id="modal-swarm">
+    <div class="modal-card">
+      <h3 id="modal-swarm-title">创建新协同蜂群</h3>
+      <form id="form-new-swarm">
+        <div class="form-field">
+          <label for="s-title">蜂群项目名称</label>
+          <input id="s-title" required placeholder="例如：支付网关 v2.4 多 Agent 协同迭代" />
+        </div>
+        <div class="form-field">
+          <label for="s-template">初始团队模板</label>
+          <select id="s-template">
+            <option value="gitlab-fullstack">GitLab 全栈研发协同蜂群（6 角色）</option>
+            <option value="heterogeneous-cli">异构 CLI 混编团队（Claude + Codex + Gemini）</option>
+            <option value="gitlab-code-review">GitLab MR 多视角联合审查团队</option>
+            <option value="">空白蜂群（手动招募）</option>
+          </select>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn" id="btn-close-swarm">取消</button>
+          <button type="submit" class="btn primary">创建蜂群</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

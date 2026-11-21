@@ -1,0 +1,41 @@
+{
+  "title": "异构 Agent 混编示例（CLI + OpenAI/Ollama + Webhook + 人类门禁）",
+  "language": "zh-CN",
+  "members": [
+    {
+      "name": "pm",
+      "role": "human",
+      "driver": "human",
+      "workspace": "inherit",
+      "brief": "产品经理：在 Web 看板审阅架构方案并批准上线门禁。"
+    },
+    {
+      "name": "coder-claude",
+      "role": "author",
+      "driver": "cli-agent",
+      "driverConfig": { "preset": "claude-code" },
+      "workspace": "share",
+      "owns": ["src/core/**"]
+    },
+    {
+      "name": "coder-ollama",
+      "role": "author",
+      "driver": "openai-compatible",
+      "model": "qwen2.5-coder:32b",
+      "driverConfig": { "baseUrl": "http://127.0.0.1:11434/v1" },
+      "workspace": "share",
+      "owns": ["src/utils/**"]
+    },
+    {
+      "name": "dify-reviewer",
+      "role": "verifier",
+      "driver": "webhook",
+      "driverConfig": {
+        "url": "http://127.0.0.1:8080/webhook/yunyu-review",
+        "secret": "replace-me"
+      },
+      "workspace": "inherit",
+      "owns": ["docs/reviews/**"]
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "executedAt": "2026-11-21T13:23:47.518Z",
+  "url": "http://127.0.0.1:2142",
+  "desktop": {
+    "board": {
+      "title": "云驭协同（Yunyu Teamwork）— 开源多 Agent 蜂群研发与 GitLab 协同平台",
+      "brandName": "云驭协同",
+      "cardsCount": 13,
+      "hasTranslationToggle": true,
+      "overflowX": false
+    },
+    "graph": {
+      "nodeCount": 8,
+      "edgeCount": 11,
+      "stepLabel": "第 13 / 13 条 · #13 · 21:23:47",
+      "hasDetailCard": true
+    },
+    "membersCount": 7,
+    "gitlabConnected": true,
+    "ownershipGuardLiveCheck": "✕ 守卫拦截 成员 @qa 严禁修改匹配 \"src/**\" 的路径（铁律：QA/验证者严禁修改业务源码，请发缺陷单交由对应作者修复）"
+  },
+  "mobile": {
+    "vw": 390,
+    "vh": 844,
+    "overflowX": false,
+    "cardsVisible": 13
+  },
+  "screenshots": [
+    "ui_board_zh.png",
+    "ui_graph_replay_zh.png",
+    "ui_gitlab_panel.png",
+    "ui_contract_worktrees.png"
+  ],
+  "runtimeErrors": [],
+  "durationMs": 20616
+}

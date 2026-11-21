@@ -1,0 +1,39 @@
+{
+  "project": "yunyu/order-service",
+  "version": "1.0.0",
+  "language": "zh-CN",
+  "description": "云驭协同标准文件所有权与多 Agent 读写隔离契约（CONTRACT.json）",
+  "globalForbidden": [
+    "dist/**",
+    "build/**",
+    "coverage/**",
+    ".env"
+  ],
+  "ownership": {
+    "architect": {
+      "role": "architect",
+      "owns": ["docs/**", "CONTRACT.json", "AGENTS.md"],
+      "mustNotTouch": ["src/**", "tests/**"]
+    },
+    "backend": {
+      "role": "author",
+      "owns": ["src/server/**", "src/api/**", "src/core/**"],
+      "mustNotTouch": ["web/**", "tests/**"]
+    },
+    "frontend": {
+      "role": "author",
+      "owns": ["web/**"],
+      "mustNotTouch": ["src/**", "tests/**"]
+    },
+    "qa": {
+      "role": "verifier",
+      "owns": ["tests/**", "docs/benchmarks/**"],
+      "mustNotTouch": ["src/**", "web/**"]
+    },
+    "release": {
+      "role": "release",
+      "owns": ["CHANGELOG.md", "README.md", ".gitlab-ci.yml", "package.json"],
+      "mustNotTouch": ["src/core/**"]
+    }
+  }
+}

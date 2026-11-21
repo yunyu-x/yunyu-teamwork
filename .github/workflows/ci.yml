@@ -1,0 +1,28 @@
+name: Yunyu Teamwork CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax Check
+        run: npm run check
+      - name: Unit & Integration Tests (incl. Git Worktree, GitLab Mock, MCP, SSE)
+        run: npm test
+      - name: Headless Chromium Web UI CDP QA
+        run: |
+          CHROME_PATH=$(which chromium-browser || which chromium || which google-chrome || true)
+          if [ -n "$CHROME_PATH" ]; then
+            CHROME_PATH="$CHROME_PATH" npm run qa:ui
+          else
+            echo "Chromium not installed on runner; skipping CDP UI check."
+          fi

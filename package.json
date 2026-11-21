@@ -1,0 +1,56 @@
+{
+  "name": "yunyu-teamwork",
+  "version": "0.1.0",
+  "description": "云驭协同（Yunyu Teamwork）— 开源多 Agent 蜂群协同研发与项目管理平台（零外部依赖、异构 Agent 接入、Git Worktree 隔离、文件所有权契约、原生 GitLab 双向联动与 MCP 服务端）",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "bin": {
+    "yunyu": "./bin/yunyu.mjs",
+    "yunyu-mcp": "./bin/yunyu-mcp.mjs"
+  },
+  "exports": {
+    ".": "./src/index.mjs",
+    "./gitlab": "./src/gitlab/index.mjs",
+    "./drivers": "./src/drivers/registry.mjs",
+    "./mcp": "./src/mcp/server.mjs"
+  },
+  "keywords": [
+    "multi-agent",
+    "agent-swarm",
+    "teamwork",
+    "gitlab",
+    "git-worktree",
+    "mcp",
+    "ai-engineering",
+    "claude-code",
+    "codex",
+    "gemini",
+    "project-management"
+  ],
+  "scripts": {
+    "start": "node bin/yunyu.mjs serve",
+    "demo": "node bin/yunyu.mjs demo",
+    "mcp": "node bin/yunyu-mcp.mjs",
+    "check": "node scripts/check-syntax.mjs",
+    "test:unit": "node --test tests/unit/*.test.mjs",
+    "test:integration": "node --test tests/integration/*.test.mjs",
+    "test": "node --test tests/unit/*.test.mjs tests/integration/*.test.mjs",
+    "qa:ui": "node tests/ui/cdp-ui-qa.mjs",
+    "verify": "npm run check && npm test && npm run qa:ui"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "web/",
+    "examples/",
+    "docs/",
+    "LICENSE",
+    "README.md",
+    "README.en.md",
+    "AGENTS.md",
+    "CHANGELOG.md"
+  ]
+}
