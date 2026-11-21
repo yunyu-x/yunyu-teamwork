@@ -87,6 +87,12 @@ export async function runShowcaseDemo({ manager, repoPath = null, gitlabMock = n
       projectId: 'yunyu/order-service',
       linkedIssueIid: 1
     },
+    budget: {
+      maxTokens: 100_000,
+      maxTurns: 40,
+      maxCostUsd: 2.0,
+      warnRatio: 0.8
+    },
     enableMonitor: true,
     monitorIntervalMs: 60_000,
     stallThresholdMs: 120_000
@@ -339,8 +345,8 @@ test('TokenBucketLimiter enforces capacity, time refill, and positive cost', () 
 `
         });
 
-        const testRes = tools.run_command({ command: 'node --test tests/rate-limiter.test.mjs' });
-        if (!testRes.ok) {
+        const testRes = tools.run_verification({ command: 'node --test tests/rate-limiter.test.mjs' });
+        if (!testRes.passed) {
           return {
             reply: `@backend [缺陷单][P1] 自动化测试第 ${qaRounds} 轮失败（QA 只读守卫校验：写入 \`src/\` 拦截=${guardBlocked}）：\n- 复现命令：\`node --test tests/rate-limiter.test.mjs\`\n- 问题定位：\`TokenBucketLimiter\` 缺少按时间窗口回充令牌（\`refill\`）且未校验 \`cost <= 0\`。\n请 backend 在隔离分支修复后通知 coordinator 合并复测。`,
             channel: 'qa',
@@ -453,6 +459,71 @@ test('TokenBucketLimiter enforces capacity, time refill, and positive cost', () 
     channel: 'main',
     kind: MESSAGE_KINDS.DONE
   });
+
+  // Seed Knowledge Vault & Qoder-style follow-up Issues for interactive UI walkthrough
+  const kbResearch = swarm.knowledge.addEntry({
+    title: '调研简报：令牌桶限流算法与多 Agent 协作治理最佳实践',
+    category: 'research',
+    summary: '综合对比令牌桶与漏桶算法，结合 Qoder Spec 驱动 Issue 流与 Beads DAG 依赖锁，避免并发冲突与无界消耗。',
+    content: [
+      '## 核心结论',
+      '- [1] 令牌桶（TokenBucket）支持可控突发流量，配合显式时间戳 `refill(now)` 可实现 100% 确定性单元测试。',
+      '- [2] 采用 Qoder 6 态 Issue 流（待规划 → 待开始 → 进行中 → 待验收 → 已完成 / 已取消），在冻结 Spec 与验收清单后再派发 Agent 执行。',
+      '- [3] 引入 Beads DAG 依赖图、TTL 认领租约与 Paperclip 预算熔断上限，补全多 Agent 长时运行短板。'
+    ].join('\n'),
+    sources: [
+      { title: 'CONTRACT.json', path: 'CONTRACT.json', snippet: 'TokenBucketLimiter & renderRateLimitCard 契约定义' },
+      { title: 'docs/DESIGN.md', path: 'docs/DESIGN.md', snippet: '订单限流器架构设计说明' }
+    ],
+    tags: ['rate-limit', 'qoder', 'beads', 'research'],
+    author: 'architect'
+  });
+
+  const planningIssue = swarm.tasks.createTask({
+    title: '规划多租户动态限流规则热更新（v2 迭代）',
+    description: '支持按租户 ID 动态调整 capacity 与 refillPerSec，无需重启网关服务。',
+    spec: '## 目标背景\n大促期间需支持按商家等级热更新限流配额。\n\n## 技术方案\n1. 在 `src/rate-limiter.mjs` 增加 `updatePolicy(tenantId, cfg)`；\n2. 通过不可变快照切换避免并发读写撕裂。',
+    specStatus: 'draft',
+    acceptanceCriteria: [
+      '支持租户级配额热更新且不影响其他租户',
+      '补齐并发压力与非法参数单测',
+      '通过 OwnershipGuard 越权审计'
+    ],
+    labels: ['v2-roadmap', 'spec-driven'],
+    reporter: 'coordinator',
+    assignee: 'backend',
+    status: 'backlog',
+    priority: 'P1',
+    gitlabIssueIid: 1,
+    linkedKnowledgeIds: [kbResearch.id]
+  });
+
+  swarm.tasks.createTask({
+    title: '验收令牌桶监控指标卡片与前端暗黑主题适配',
+    description: '核对 `web/dashboard-widget.mjs` 渲染指标及低水位告警逻辑，确认 Diff 后点击通过或打回。',
+    spec: '## 验收范围\n检查 `renderRateLimitCard(stats)` 在剩余令牌低于 20% 时准确输出 `data-status="warn"`。',
+    specStatus: 'approved',
+    acceptanceCriteria: [
+      '中文指标展示清晰无截断',
+      '低水位 < 20% 触发 data-status="warn"'
+    ],
+    labels: ['frontend', 'acceptance'],
+    reporter: 'coordinator',
+    assignee: 'frontend',
+    reviewer: 'qa',
+    status: 'review',
+    priority: 'P0',
+    dependsOn: [planningIssue.id],
+    branch: swarm.members.get('frontend')?.branch || null,
+    gitlabIssueIid: 1,
+    gitlabMrIid: swarm.gitlab?.linkedMrIid || 1,
+    linkedKnowledgeIds: [kbResearch.id]
+  });
+
+  // Refresh live Project World Model, run automated audit, and synthesize living Wiki pages
+  swarm.refreshWorldModel();
+  swarm.runProjectAudit();
+  swarm.generateWiki({ projectName: 'yunyu-order-service' });
 
   // Wait briefly for final GitLab bidirectional sync
   await new Promise((r) => setTimeout(r, 80));

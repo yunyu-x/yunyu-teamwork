@@ -1,119 +1,18 @@
-import { colorForNode, renderCollaborationGraph } from './graph.js';
+import { renderCollaborationGraph } from './graph.js';
 import { I18N, t } from './i18n.js';
-
-const state = {
-  lang: 'zh-CN',
-  tab: 'board',
-  swarms: [],
-  currentSwarmId: null,
-  swarm: null,
-  messages: [],
-  gitlab: null,
-  filters: {
-    search: '',
-    channel: 'all',
-    kind: 'all'
-  },
-  showOriginalMap: new Set(), // seqs toggled to original text
-  graph: {
-    upToSeq: null,
-    hideInactive: false,
-    expandAll: false,
-    playing: false,
-    speed: 1,
-    timer: null,
-    data: null
-  },
-  sse: null
-};
-
-const $ = (sel) => document.querySelector(sel);
-
-async function api(path, options = {}) {
-  const res = await fetch(path, {
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-    ...options
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-  return data;
-}
-
-function formatTime(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
-}
-
-function escapeHtml(s) {
-  return String(s ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;');
-}
-
-function formatRichText(text) {
-  let html = escapeHtml(text);
-  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-  html = html.replace(/(^|[\s(（【\[,:;，：；])(@#?[a-z][a-z0-9_-]*)/g, '$1<span class="mention-tok">$2</span>');
-  html = html.replace(/(^|[\s(（【\[,:;，：；])#(\d+)\b/g, '$1<span class="seq-link" data-jump-seq="$2">#$2</span>');
-  return html;
-}
-
-function displayBodyForMessage(msg) {
-  const hasZh = Boolean(msg.translations && msg.translations['zh-CN']);
-  if (state.lang === 'zh-CN' && hasZh && !state.showOriginalMap.has(msg.seq)) {
-    return { text: msg.translations['zh-CN'], isTranslated: true, hasTranslation: true };
-  }
-  return { text: msg.text, isTranslated: false, hasTranslation: hasZh };
-}
-
-function renderMessageCard(msg, { highlight = false } = {}) {
-  const membersMap = new Map((state.swarm?.members || []).map((m) => [m.name, m]));
-  const role = membersMap.get(msg.author)?.role || (msg.author === 'gitlab' ? 'gitlab' : 'author');
-  const col = colorForNode(msg.author, role);
-  const initials = msg.author.slice(0, 2).toUpperCase();
-  const route = msg.broadcastAll
-    ? '→ @all'
-    : msg.mentions?.length
-      ? `→ ${msg.mentions.map((x) => `@${x}`).join(' ')}`
-      : '';
-  const bodyObj = displayBodyForMessage(msg);
-  const kindBadge = msg.kind && msg.kind !== 'post'
-    ? `<span class="badge ${escapeHtml(msg.kind)}">${escapeHtml(msg.kind)}</span>`
-    : '';
-
-  return `
-    <article class="msg-card kind-${escapeHtml(msg.kind || 'post')} ${highlight ? 'highlight' : ''}" data-seq="${msg.seq}">
-      <div class="msg-header">
-        <div class="msg-author-row">
-          <span class="avatar" style="background:${col}">${escapeHtml(initials)}</span>
-          <span class="author-name">@${escapeHtml(msg.author)}</span>
-          ${route ? `<span class="mention-route">${escapeHtml(route)}</span>` : ''}
-          ${kindBadge}
-          <span class="badge">#${escapeHtml(msg.channel || 'main')}</span>
-        </div>
-        <div class="msg-meta">
-          <span>#${msg.seq}</span>
-          <span>·</span>
-          <span>${formatTime(msg.time)}</span>
-        </div>
-      </div>
-      <div class="msg-body">${formatRichText(bodyObj.text)}</div>
-      ${
-        bodyObj.hasTranslation
-          ? `<div class="msg-trans-bar">
-              <span>${bodyObj.isTranslated ? `🌐 ${t(state.lang, 'translatedTag')}（不篡改不可变原帖）` : '📄 原始不可变消息'}</span>
-              <button type="button" class="btn small" data-toggle-trans="${msg.seq}">
-                ${bodyObj.isTranslated ? t(state.lang, 'showOriginal') : t(state.lang, 'showTranslated')}
-              </button>
-            </div>`
-          : ''
-      }
-    </article>`;
-}
+import { $, api, escapeHtml, formatTime, showToast, state } from './lib/state.js';
+import { renderBoard, renderMessageCard } from './views/board.js';
+import { renderContract } from './views/contract.js';
+import { loadIssueNotes, renderGitLab } from './views/gitlab.js';
+import { closeIssueDrawer, openIssueDrawer, renderIssueDrawer, renderKanban } from './views/kanban.js';
+import { renderKnowledge } from './views/knowledge.js';
+import {
+  renderAgentLogs,
+  renderMemberModalHelpers,
+  renderMembers,
+  syncMemberModalDynamicFields
+} from './views/members.js';
+import { renderWorldWikiView } from './world-wiki.js';
 
 function applyStaticLabels() {
   const L = state.lang;
@@ -122,6 +21,9 @@ function applyStaticLabels() {
   $('#btn-new-swarm').textContent = t(L, 'newSwarmBtn');
   $('#btn-add-member').textContent = t(L, 'addMemberBtn');
   $('#tab-label-board').textContent = t(L, 'tabBoard');
+  $('#tab-label-kanban').textContent = t(L, 'tabKanban');
+  if ($('#tab-label-knowledge')) $('#tab-label-knowledge').textContent = t(L, 'tabKnowledge');
+  if ($('#tab-label-world')) $('#tab-label-world').textContent = t(L, 'tabWorld');
   $('#tab-label-graph').textContent = t(L, 'tabGraph');
   $('#tab-label-members').textContent = t(L, 'tabMembers');
   $('#tab-label-gitlab').textContent = t(L, 'tabGitlab');
@@ -137,6 +39,7 @@ function applyStaticLabels() {
   $('#legend-active').textContent = t(L, 'graphLegendActive');
   $('#modal-member-title').textContent = t(L, 'modalAddMemberTitle');
   $('#modal-swarm-title').textContent = t(L, 'modalNewSwarmTitle');
+  $('#agent-logs-title').textContent = t(L, 'agentLogsTitle');
 }
 
 function renderTopStatus() {
@@ -152,64 +55,13 @@ function renderTopStatus() {
   pill.innerHTML = `<span class="live-dot"></span><span>${isDone ? t(state.lang, 'doneBadge') : t(state.lang, 'liveBadge')}</span>`;
 
   $('#count-board').textContent = String(state.messages.length);
+  $('#count-kanban').textContent = String(state.tasks.length);
+  if ($('#count-knowledge')) $('#count-knowledge').textContent = String(s?.knowledgeCount ?? state.knowledge.length);
+  if ($('#count-wiki')) $('#count-wiki').textContent = String(s?.wikiCount ?? state.wikiPages.length);
   $('#count-members').textContent = String((s?.members || []).filter((m) => !m.killed).length);
   $('#count-gitlab').textContent = state.gitlab?.connected
     ? String((state.gitlab.issues?.length || 0) + (state.gitlab.mergeRequests?.length || 0))
     : '0';
-}
-
-function renderBoard() {
-  const channels = state.swarm?.channels || [{ name: 'main' }];
-  $('#channel-pills').innerHTML = [
-    `<button type="button" class="pill ${state.filters.channel === 'all' ? 'active' : ''}" data-filter-ch="all">${t(state.lang, 'allChannels')}</button>`,
-    ...channels.map(
-      (c) => `<button type="button" class="pill ${state.filters.channel === c.name ? 'active' : ''}" data-filter-ch="${escapeHtml(c.name)}">#${escapeHtml(c.name)}</button>`
-    )
-  ].join('');
-
-  const kinds = [
-    ['all', t(state.lang, 'kindAll')],
-    ['brief', t(state.lang, 'kindBrief')],
-    ['deliverable', t(state.lang, 'kindDeliverable')],
-    ['defect', t(state.lang, 'kindDefect')],
-    ['gitlab', t(state.lang, 'kindGitlab')],
-    ['done', t(state.lang, 'kindDone')]
-  ];
-  $('#kind-pills').innerHTML = kinds
-    .map(
-      ([k, lbl]) => `<button type="button" class="pill ${state.filters.kind === k ? 'active' : ''}" data-filter-kind="${k}">${lbl}</button>`
-    )
-    .join('');
-
-  const q = state.filters.search.trim().toLowerCase();
-  const filtered = state.messages.filter((m) => {
-    if (state.filters.channel !== 'all' && m.channel !== state.filters.channel) return false;
-    if (state.filters.kind !== 'all' && m.kind !== state.filters.kind) return false;
-    if (q) {
-      const hay = `${m.seq} ${m.author} ${m.text} ${Object.values(m.translations || {}).join(' ')}`.toLowerCase();
-      if (!hay.includes(q)) return false;
-    }
-    return true;
-  });
-
-  const listEl = $('#board-messages');
-  listEl.innerHTML = filtered.length
-    ? filtered.map((m) => renderMessageCard(m)).join('')
-    : `<div class="empty-state">当前筛选条件下暂无留言消息</div>`;
-
-  // Composer quick mention chips & channel selector
-  const activeMembers = (state.swarm?.members || []).filter((m) => !m.killed && m.role !== 'monitor');
-  $('#composer-mentions').innerHTML = [
-    ...activeMembers.map((m) => `<button type="button" class="mention-chip" data-insert-mention="@${escapeHtml(m.name)}">@${escapeHtml(m.name)}</button>`),
-    `<button type="button" class="mention-chip" data-insert-mention="@all">@all</button>`
-  ].join('');
-
-  const chSel = $('#composer-channel');
-  const prevCh = chSel.value || 'main';
-  chSel.innerHTML = channels
-    .filter((c) => !c.archived)
-    .map((c) => `<option value="${escapeHtml(c.name)}" ${c.name === prevCh ? 'selected' : ''}>#${escapeHtml(c.name)}</option>`)
-    .join('');
 }
 
 async function renderGraphView() {
@@ -244,259 +96,204 @@ async function renderGraphView() {
     : `<div class="empty-state">选择时间轴上的消息节点查看详细交付内容</div>`;
 }
 
-function renderMembers() {
-  const members = state.swarm?.members || [];
-  const stateLabels = I18N[state.lang].stateLabels;
-  const roleLabels = I18N[state.lang].roleLabels;
-
-  $('#members-grid').innerHTML = members
-    .map((m) => {
-      const col = colorForNode(m.name, m.role);
-      return `
-        <div class="panel-card">
-          <h3>
-            <span style="display:inline-flex;align-items:center;gap:8px;">
-              <span class="avatar" style="background:${col}">${escapeHtml(m.name.slice(0, 2).toUpperCase())}</span>
-              <span>@${escapeHtml(m.name)}</span>
-            </span>
-            <span class="state-pill state-${escapeHtml(m.state)}">${escapeHtml(stateLabels[m.state] || m.state)}</span>
-          </h3>
-          <div class="kv-list">
-            <div class="kv-row"><span>角色</span><code>${escapeHtml(roleLabels[m.role] || m.role)}</code></div>
-            <div class="kv-row"><span>接入驱动</span><code>${escapeHtml(m.driver)}</code></div>
-            <div class="kv-row"><span>模型 / 引擎</span><code>${escapeHtml(m.model || 'default')}</code></div>
-            <div class="kv-row"><span>工作区模式</span><code>${escapeHtml(m.workspaceMode)}${m.branch ? ` (${escapeHtml(m.branch)})` : ''}</code></div>
-            <div class="kv-row"><span>独占所有权</span><code>${escapeHtml(m.owns?.length ? m.owns.join(', ') : '—')}</code></div>
-            <div class="kv-row"><span>禁止修改</span><code>${escapeHtml(m.mustNotTouch?.length ? m.mustNotTouch.join(', ') : '—')}</code></div>
-            <div class="kv-row"><span>轮次 / 最新发帖</span><code>${m.turns} 轮 / #${m.lastPostSeq || 0}</code></div>
-          </div>
-          ${
-            !m.killed && m.role !== 'monitor'
-              ? `<div style="display:flex;gap:8px;margin-top:12px;">
-                  <button type="button" class="btn small primary" data-mention-member="${escapeHtml(m.name)}">@${escapeHtml(m.name)} 发消息</button>
-                  <button type="button" class="btn small danger" data-kill-member="${escapeHtml(m.name)}">销毁节点</button>
-                </div>`
-              : ''
-          }
-        </div>`;
-    })
-    .join('');
+function renderWorldWiki() {
+  renderWorldWikiView({ state, container: $('#world-view-body') });
+  $('#wiki-search-input')?.addEventListener('input', (ev) => {
+    state.wikiFilters.q = ev.target.value;
+    renderWorldWiki();
+    const inp = $('#wiki-search-input');
+    if (inp) {
+      inp.focus();
+      inp.setSelectionRange(inp.value.length, inp.value.length);
+    }
+  });
+  $('#form-world-impact')?.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    try {
+      const raw = $('#impact-target-input')?.value.trim();
+      if (!raw || !state.currentSwarmId) return;
+      state.impactQuery = raw;
+      const targets = raw.split(/[,\s]+/).filter(Boolean);
+      state.worldImpact = await api(`/api/swarms/${encodeURIComponent(state.currentSwarmId)}/world-model/impact`, {
+        method: 'POST',
+        body: JSON.stringify({ targets })
+      });
+      renderWorldWiki();
+    } catch (err) {
+      showToast(err.message);
+    }
+  });
+  $('#form-wiki-edit')?.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    try {
+      if (!state.currentSwarmId) return;
+      const slug = $('#wiki-edit-slug')?.value.trim();
+      const title = $('#wiki-edit-title')?.value.trim();
+      const category = $('#wiki-edit-category')?.value || 'custom';
+      const summary = $('#wiki-edit-summary')?.value.trim() || '修订 Wiki 文档';
+      const content = $('#wiki-edit-content')?.value || '';
+      if (!slug || !title) return;
+      const saved = await api(`/api/swarms/${encodeURIComponent(state.currentSwarmId)}/wiki`, {
+        method: 'POST',
+        body: JSON.stringify({ slug, title, category, summary, content, author: 'coordinator' })
+      });
+      state.activeWikiSlug = saved.slug;
+      state.wikiEditMode = false;
+      state.wikiDraft = null;
+      const wikiData = await api(`/api/swarms/${encodeURIComponent(state.currentSwarmId)}/wiki`);
+      state.wikiPages = wikiData.pages || [];
+      renderTopStatus();
+      renderWorldWiki();
+    } catch (err) {
+      showToast(err.message);
+    }
+  });
 }
 
-function renderGitLab() {
-  const el = $('#gitlab-view-body');
-  if (!state.gitlab || !state.gitlab.connected) {
-    el.innerHTML = `<div class="panel-card"><p>${escapeHtml(t(state.lang, 'gitlabDisconnected'))}</p></div>`;
+async function loadWorldWikiData() {
+  if (!state.currentSwarmId) return;
+  const encId = encodeURIComponent(state.currentSwarmId);
+  const [wmData, wikiData] = await Promise.all([
+    api(`/api/swarms/${encId}/world-model`),
+    api(`/api/swarms/${encId}/wiki`)
+  ]);
+  state.worldModel = wmData;
+  state.wikiPages = wikiData.pages || [];
+  if (!state.worldAudit && wmData?.lastAudit) state.worldAudit = wmData.lastAudit;
+  renderTopStatus();
+  if (!state.wikiEditMode) renderWorldWiki();
+}
+
+function stopGraphPlay() {
+  if (!state.graph.playing) return;
+  state.graph.playing = false;
+  clearInterval(state.graph.timer);
+  state.graph.timer = null;
+  const btn = $('#graph-play-btn');
+  if (btn) btn.textContent = '▶';
+}
+
+function startGraphPlayTimer() {
+  clearInterval(state.graph.timer);
+  const interval = Math.round(1100 / state.graph.speed);
+  state.graph.timer = setInterval(async () => {
+    if (state.graph.upToSeq >= state.messages.length) {
+      stopGraphPlay();
+      return;
+    }
+    state.graph.upToSeq += 1;
+    await renderGraphView().catch(() => {});
+  }, interval);
+}
+
+function toggleGraphPlay() {
+  if (state.graph.playing) {
+    stopGraphPlay();
     return;
   }
-
-  const { project, issues = [], mergeRequests = [], pipelines = [], syncLog = [] } = state.gitlab;
-  el.innerHTML = `
-    <div class="section-stack">
-      <div class="panel-card">
-        <h3>
-          <span>🦊 GitLab 仓库：<code>${escapeHtml(project?.path_with_namespace || state.gitlab.projectId)}</code></span>
-          <span class="badge gitlab">${escapeHtml(state.gitlab.baseUrl)}</span>
-        </h3>
-        <form id="gitlab-issue-form" class="inline-form">
-          <input id="gl-issue-title" type="text" placeholder="输入新 GitLab Issue 标题（提交后将自动唤醒 @coordinator 拆解研发）" style="flex:1 1 280px" required />
-          <input id="gl-issue-desc" type="text" placeholder="验收标准 / 需求描述（可选）" style="flex:1 1 240px" />
-          <button type="submit" class="btn primary">${escapeHtml(t(state.lang, 'gitlabNewIssue'))}</button>
-        </form>
-      </div>
-
-      <div class="two-col">
-        <div class="panel-card">
-          <h3><span>${escapeHtml(t(state.lang, 'gitlabIssues'))}</span><span class="badge">${issues.length}</span></h3>
-          ${issues
-            .map(
-              (iss) => `
-            <div class="item-box">
-              <div class="item-box-title">#${iss.iid} ${escapeHtml(iss.title)}</div>
-              <div style="font-size:12px;color:var(--text-muted);">${escapeHtml((iss.description || '').slice(0, 140))}</div>
-              <div class="label-list">
-                <span class="badge ${iss.state === 'opened' ? 'deliverable' : ''}">${escapeHtml(iss.state)}</span>
-                ${(iss.labels || []).map((lb) => `<span class="badge">${escapeHtml(lb)}</span>`).join('')}
-                <span class="badge">💬 ${iss.notes?.length || 0} 条评论</span>
-              </div>
-            </div>`
-            )
-            .join('') || '<div class="empty-state">暂无 Issues</div>'}
-        </div>
-
-        <div class="panel-card">
-          <h3><span>${escapeHtml(t(state.lang, 'gitlabMrs'))}</span><span class="badge">${mergeRequests.length}</span></h3>
-          ${mergeRequests
-            .map(
-              (mr) => `
-            <div class="item-box">
-              <div class="item-box-title">!${mr.iid} ${escapeHtml(mr.title)}</div>
-              <div style="font-size:12px;font-family:var(--mono);color:var(--text-muted);">${escapeHtml(mr.source_branch)} → ${escapeHtml(mr.target_branch)}</div>
-              <div class="label-list" style="align-items:center;justify-content:space-between;">
-                <span class="badge ${mr.state === 'merged' ? 'done' : 'gitlab'}">${escapeHtml(mr.state)}</span>
-                ${
-                  mr.state === 'opened'
-                    ? `<button type="button" class="btn small primary" data-merge-mr="${mr.iid}">批准并合并 MR</button>`
-                    : ''
-                }
-              </div>
-            </div>`
-            )
-            .join('') || '<div class="empty-state">暂无 Merge Requests</div>'}
-        </div>
-      </div>
-
-      <div class="two-col">
-        <div class="panel-card">
-          <h3><span>${escapeHtml(t(state.lang, 'gitlabPipelines'))}</span><span class="badge">${pipelines.length}</span></h3>
-          ${pipelines
-            .map(
-              (p) => `
-            <div class="item-box">
-              <div class="item-box-title">Pipeline #${p.id} · 分支 <code>${escapeHtml(p.ref)}</code></div>
-              <div class="label-list">
-                <span class="badge ${p.status === 'success' ? 'done' : 'defect'}">${escapeHtml(p.status)}</span>
-                <span class="badge">${p.duration || 0}s</span>
-                ${(p.jobs || []).map((j) => `<span class="badge">${escapeHtml(j.stage)}/${escapeHtml(j.name)}</span>`).join('')}
-              </div>
-            </div>`
-            )
-            .join('')}
-        </div>
-
-        <div class="panel-card">
-          <h3><span>${escapeHtml(t(state.lang, 'gitlabSyncLog'))}</span><span class="badge">${syncLog.length}</span></h3>
-          ${syncLog
-            .slice()
-            .reverse()
-            .slice(0, 8)
-            .map(
-              (s) => `
-            <div class="item-box">
-              <div style="font-family:var(--mono);font-size:12px;">#${s.seq} · ${formatTime(s.time)}</div>
-              <div class="label-list">${s.actions.map((a) => `<span class="badge deliverable">${escapeHtml(a)}</span>`).join('')}</div>
-            </div>`
-            )
-            .join('') || '<div class="empty-state">等待看板阶段交付自动镜像至 GitLab...</div>'}
-        </div>
-      </div>
-    </div>`;
-
-  const issueForm = $('#gitlab-issue-form');
-  if (issueForm) {
-    issueForm.addEventListener('submit', async (ev) => {
-      ev.preventDefault();
-      const title = $('#gl-issue-title').value.trim();
-      const description = $('#gl-issue-desc').value.trim();
-      if (!title) return;
-      await api(`/api/swarms/${encodeURIComponent(state.currentSwarmId)}/gitlab/issues`, {
-        method: 'POST',
-        body: JSON.stringify({ title, description, triggerSwarm: true })
-      });
-      await refreshCurrentSwarm();
-    });
+  if (state.messages.length === 0) return;
+  if (state.graph.upToSeq >= state.messages.length) {
+    state.graph.upToSeq = 1;
   }
+  state.graph.playing = true;
+  $('#graph-play-btn').textContent = '❚❚';
+  startGraphPlayTimer();
 }
 
-function renderContract() {
-  const ownership = state.swarm?.ownership || { rules: [], globalForbidden: [], collisions: [], auditLog: [] };
-  const worktrees = state.swarm?.worktrees || [];
-  const members = (state.swarm?.members || []).filter((m) => !m.killed);
+async function refreshMetadata() {
+  try {
+    const [health, twinsData] = await Promise.all([api('/api/health'), api('/api/twins')]);
+    state.presets = health.agentPresets || [];
+    state.channelTypes = health.channelTypes || [];
+    state.savedTwins = twinsData.twins || [];
+    renderMemberModalHelpers();
+  } catch {}
+}
 
-  $('#contract-view-body').innerHTML = `
-    <div class="section-stack">
-      <div class="panel-card">
-        <h3>
-          <span>${escapeHtml(t(state.lang, 'contractMatrix'))}</span>
-          <span class="badge ${ownership.collisions.length ? 'defect' : 'done'}">
-            ${ownership.collisions.length ? `⚠️ ${ownership.collisions.length} 处冲突` : `✓ ${t(state.lang, 'noCollisions')}`}
-          </span>
-        </h3>
-        <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">
-          全局禁改路径：<code>${escapeHtml(ownership.globalForbidden.join(', ') || '无')}</code>
-        </div>
-        <div class="table-scroll">
-          <table class="data-table">
-            <thead><tr><th>成员</th><th>角色</th><th>独占可写路径 (owns)</th><th>严禁触碰路径 (mustNotTouch)</th></tr></thead>
-            <tbody>
-              ${ownership.rules
-                .map(
-                  (r) => `<tr>
-                    <td><code>@${escapeHtml(r.agent)}</code></td>
-                    <td>${escapeHtml(r.role)}</td>
-                    <td><code>${escapeHtml(r.owns.join(', ') || '—')}</code></td>
-                    <td><code>${escapeHtml(r.mustNotTouch.join(', ') || '—')}</code></td>
-                  </tr>`
-                )
-                .join('')}
-            </tbody>
-          </table>
-        </div>
-      </div>
+let _refreshInFlight = null;
+let _refreshPending = false;
+let _refreshSeq = 0;
 
-      <div class="two-col">
-        <div class="panel-card">
-          <h3><span>${escapeHtml(t(state.lang, 'contractTester'))}</span></h3>
-          <form id="ownership-test-form" class="inline-form">
-            <select id="own-member">
-              ${members.map((m) => `<option value="${escapeHtml(m.name)}">@${escapeHtml(m.name)} (${escapeHtml(m.role)})</option>`).join('')}
-            </select>
-            <input id="own-path" type="text" value="src/rate-limiter.mjs" placeholder="输入相对文件路径，如 src/index.mjs" style="flex:1 1 180px" />
-            <button type="submit" class="btn primary">校验写权限</button>
-          </form>
-          <div id="own-test-result" style="margin-top:10px;font-size:12.5px;color:var(--text-muted);">
-            提示：尝试用 <code>@qa</code> 测试写入 <code>src/rate-limiter.mjs</code>，将立即触发 QA 只读隔离铁律拦截。
-          </div>
-        </div>
+function isEditingInside(containerId) {
+  const active = document.activeElement;
+  if (!active) return false;
+  const tag = active.tagName;
+  if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') return false;
+  const box = document.getElementById(containerId);
+  return Boolean(box && box.contains(active));
+}
 
-        <div class="panel-card">
-          <h3><span>${escapeHtml(t(state.lang, 'contractWorktrees'))}</span><span class="badge">${worktrees.length}</span></h3>
-          ${worktrees
-            .map(
-              (w) => `
-            <div class="item-box">
-              <div class="item-box-title">@${escapeHtml(w.agent)} · <code>${escapeHtml(w.mode)}</code> ${w.branch ? `(${escapeHtml(w.branch)})` : ''}</div>
-              <div style="font-size:11.5px;font-family:var(--mono);color:var(--text-muted);">
-                HEAD: ${escapeHtml(w.headSha || '—')} · 已合并: ${w.merged ? '是' : '否'} · 变更文件: ${w.changedFiles?.length || 0}
-              </div>
-            </div>`
-            )
-            .join('')}
-        </div>
-      </div>
-
-      <div class="panel-card">
-        <h3><span>${escapeHtml(t(state.lang, 'contractAuditLog'))}</span><span class="badge">${ownership.auditLog.length}</span></h3>
-        ${ownership.auditLog
-          .slice()
-          .reverse()
-          .slice(0, 10)
-          .map(
-            (a) => `
-          <div class="item-box">
-            <div style="display:flex;justify-content:space-between;gap:8px;font-family:var(--mono);font-size:12px;">
-              <span>@${escapeHtml(a.agent)} · 检查 ${a.filesChecked} 个文件</span>
-              <span class="badge ${a.passed ? 'done' : 'defect'}">${a.passed ? 'PASS' : 'BLOCKED'}</span>
-            </div>
-          </div>`
-          )
-          .join('') || '<div class="empty-state">暂无提交/合并审计记录</div>'}
-      </div>
-    </div>`;
-
-  const form = $('#ownership-test-form');
-  if (form) {
-    form.addEventListener('submit', async (ev) => {
-      ev.preventDefault();
-      const member = $('#own-member').value;
-      const filePath = $('#own-path').value.trim();
-      const res = await api(`/api/swarms/${encodeURIComponent(state.currentSwarmId)}/ownership/check`, {
-        method: 'POST',
-        body: JSON.stringify({ member, filePath })
-      });
-      $('#own-test-result').innerHTML = `<span class="badge ${res.allowed ? 'done' : 'defect'}">${res.allowed ? '✓ 允许写入' : '✕ 守卫拦截'}</span> ${escapeHtml(res.reason)}`;
-    });
+async function refreshCurrentSwarm() {
+  if (!state.currentSwarmId) return;
+  if (_refreshInFlight) {
+    _refreshPending = true;
+    return _refreshInFlight;
   }
+  const mySeq = ++_refreshSeq;
+  const targetSwarmId = state.currentSwarmId;
+
+  const run = async () => {
+    const encId = encodeURIComponent(targetSwarmId);
+    const [swarm, msgData, glData] = await Promise.all([
+      api(`/api/swarms/${encId}`),
+      api(`/api/swarms/${encId}/messages?limit=300`),
+      api(`/api/swarms/${encId}/gitlab/overview`)
+    ]);
+    if (mySeq !== _refreshSeq || targetSwarmId !== state.currentSwarmId) return;
+
+    state.swarm = swarm;
+    state.messages = msgData.messages || [];
+    state.gitlab = glData;
+    state.tasks = swarm.tasks || [];
+
+    if (state.tab === 'members') {
+      const [logData, twinsData] = await Promise.all([
+        api(`/api/swarms/${encId}/logs?limit=120`),
+        api('/api/twins')
+      ]);
+      state.agentLogs = logData.logs || [];
+      state.savedTwins = twinsData.twins || [];
+    } else if (state.tab === 'knowledge' || state.activeIssueId) {
+      const kbData = await api(`/api/swarms/${encId}/knowledge`);
+      state.knowledge = kbData.entries || [];
+    } else if (state.tab === 'world') {
+      const [wmData, wikiData] = await Promise.all([
+        api(`/api/swarms/${encId}/world-model`),
+        api(`/api/swarms/${encId}/wiki`)
+      ]);
+      state.worldModel = wmData;
+      state.wikiPages = wikiData.pages || [];
+      if (!state.worldAudit && wmData?.lastAudit) state.worldAudit = wmData.lastAudit;
+    }
+
+    renderTopStatus();
+    renderBoard();
+    if (!isEditingInside('kanban-create-form')) {
+      renderKanban({ renderTopStatus, refreshCurrentSwarm, renderMemberModalHelpers });
+    }
+    if (!isEditingInside('research-collect-form')) {
+      renderKnowledge({ renderTopStatus, refreshCurrentSwarm });
+    }
+    if (state.tab === 'world' && !state.wikiEditMode) renderWorldWiki();
+    renderMembers();
+    if (!isEditingInside('gitlab-view-body')) renderGitLab({ refreshCurrentSwarm });
+    if (!isEditingInside('contract-view-body')) renderContract({ refreshCurrentSwarm });
+    if (state.activeIssueId && !isEditingInside('issue-drawer-body')) {
+      renderIssueDrawer({ refreshCurrentSwarm });
+    }
+    if (state.tab === 'graph') {
+      await renderGraphView();
+    }
+  };
+
+  _refreshInFlight = run().finally(() => {
+    _refreshInFlight = null;
+    if (_refreshPending) {
+      _refreshPending = false;
+      refreshCurrentSwarm().catch(() => {});
+    }
+  });
+  return _refreshInFlight;
 }
 
 async function refreshAll() {
@@ -508,70 +305,62 @@ async function refreshAll() {
   await refreshCurrentSwarm();
 }
 
-async function refreshCurrentSwarm() {
-  if (!state.currentSwarmId) return;
-  const [swarm, msgData, glData] = await Promise.all([
-    api(`/api/swarms/${encodeURIComponent(state.currentSwarmId)}`),
-    api(`/api/swarms/${encodeURIComponent(state.currentSwarmId)}/messages?limit=300`),
-    api(`/api/swarms/${encodeURIComponent(state.currentSwarmId)}/gitlab/overview`)
-  ]);
-  state.swarm = swarm;
-  state.messages = msgData.messages || [];
-  state.gitlab = glData;
-
-  renderTopStatus();
-  renderBoard();
-  renderMembers();
-  renderGitLab();
-  renderContract();
-  if (state.tab === 'graph') {
-    await renderGraphView();
-  }
-}
-
 function setActiveTab(tab) {
+  if (state.tab === 'graph' && tab !== 'graph') stopGraphPlay();
   state.tab = tab;
   document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('.view-panel').forEach((p) => p.classList.toggle('active', p.id === `panel-${tab}`));
   $('#composer-bar').style.display = tab === 'board' ? 'block' : 'none';
   if (tab === 'graph') {
-    renderGraphView();
+    renderGraphView().catch((err) => showToast(err.message));
+  } else if (tab === 'world' && state.currentSwarmId) {
+    renderWorldWiki();
+    loadWorldWikiData().catch((err) => showToast(err.message));
+  } else if (tab === 'knowledge' && state.currentSwarmId) {
+    api(`/api/swarms/${encodeURIComponent(state.currentSwarmId)}/knowledge`)
+      .then((kbData) => {
+        state.knowledge = kbData.entries || [];
+        renderKnowledge({ renderTopStatus, refreshCurrentSwarm });
+      })
+      .catch((err) => showToast(err.message));
+  } else if (tab === 'members' && state.currentSwarmId) {
+    Promise.all([
+      api(`/api/swarms/${encodeURIComponent(state.currentSwarmId)}/logs?limit=120`),
+      api('/api/twins')
+    ])
+      .then(([logData, twinsData]) => {
+        state.agentLogs = logData.logs || [];
+        state.savedTwins = twinsData.twins || [];
+        renderMembers();
+      })
+      .catch((err) => showToast(err.message));
   }
-}
-
-function toggleGraphPlay() {
-  if (state.graph.playing) {
-    state.graph.playing = false;
-    clearInterval(state.graph.timer);
-    state.graph.timer = null;
-    $('#graph-play-btn').textContent = '▶';
-    return;
-  }
-  if (state.messages.length === 0) return;
-  if (state.graph.upToSeq >= state.messages.length) {
-    state.graph.upToSeq = 1;
-  }
-  state.graph.playing = true;
-  $('#graph-play-btn').textContent = '❚❚';
-  const interval = Math.round(1100 / state.graph.speed);
-  state.graph.timer = setInterval(async () => {
-    if (state.graph.upToSeq >= state.messages.length) {
-      toggleGraphPlay();
-      return;
-    }
-    state.graph.upToSeq += 1;
-    await renderGraphView();
-  }, interval);
 }
 
 function connectSse() {
   if (state.sse) state.sse.close();
-  const es = new EventSource('/api/events');
+  const qs = state.currentSwarmId ? `?swarmId=${encodeURIComponent(state.currentSwarmId)}` : '';
+  const es = new EventSource(`/api/events${qs}`);
   const handleUpdate = () => refreshCurrentSwarm().catch(() => {});
   es.addEventListener('message', handleUpdate);
   es.addEventListener('status', handleUpdate);
   es.addEventListener('translation', handleUpdate);
+  es.addEventListener('task', handleUpdate);
+  es.addEventListener('knowledge', handleUpdate);
+  es.addEventListener('wiki', handleUpdate);
+  es.addEventListener('world_model', handleUpdate);
+  es.addEventListener('audit', handleUpdate);
   es.addEventListener('swarm_created', () => refreshAll().catch(() => {}));
+  es.addEventListener('agent_log', (ev) => {
+    try {
+      const parsed = JSON.parse(ev.data);
+      const entry = parsed.payload || parsed;
+      if (entry.swarmId && entry.swarmId !== state.currentSwarmId) return;
+      state.agentLogs.push(entry);
+      if (state.agentLogs.length > 200) state.agentLogs.shift();
+      renderAgentLogs();
+    } catch {}
+  });
   state.sse = es;
 }
 
@@ -581,16 +370,30 @@ function bindEvents() {
     applyStaticLabels();
     renderTopStatus();
     renderBoard();
+    renderKanban({ renderTopStatus, refreshCurrentSwarm, renderMemberModalHelpers });
+    renderKnowledge({ renderTopStatus, refreshCurrentSwarm });
+    if (state.tab === 'world') renderWorldWiki();
     renderMembers();
-    renderGitLab();
-    renderContract();
-    if (state.tab === 'graph') renderGraphView();
+    renderGitLab({ refreshCurrentSwarm });
+    renderContract({ refreshCurrentSwarm });
+    if (state.activeIssueId) renderIssueDrawer({ refreshCurrentSwarm });
+    if (state.tab === 'graph') renderGraphView().catch(() => {});
   });
 
   $('#swarm-select').addEventListener('change', async (ev) => {
+    stopGraphPlay();
     state.currentSwarmId = ev.target.value;
     state.graph.upToSeq = null;
-    await refreshCurrentSwarm();
+    state.openIssueNotes.clear();
+    state.issueNotesMap.clear();
+    state.worldModel = null;
+    state.wikiPages = [];
+    state.activeWikiSlug = null;
+    state.worldImpact = null;
+    state.worldAudit = null;
+    state.wikiEditMode = false;
+    connectSse();
+    await refreshCurrentSwarm().catch((err) => showToast(err.message));
   });
 
   document.querySelectorAll('.tab-btn').forEach((btn) => {
@@ -602,184 +405,563 @@ function bindEvents() {
     renderBoard();
   });
 
-  document.addEventListener('click', async (ev) => {
-    const chBtn = ev.target.closest('[data-filter-ch]');
-    if (chBtn) {
-      state.filters.channel = chBtn.dataset.filterCh;
-      renderBoard();
-      return;
-    }
+  $('#logs-member-filter')?.addEventListener('change', (ev) => {
+    state.logsMemberFilter = ev.target.value;
+    renderAgentLogs();
+  });
 
-    const kindBtn = ev.target.closest('[data-filter-kind]');
-    if (kindBtn) {
-      state.filters.kind = kindBtn.dataset.filterKind;
-      renderBoard();
-      return;
-    }
-
-    const transBtn = ev.target.closest('[data-toggle-trans]');
-    if (transBtn) {
-      const seq = Number(transBtn.dataset.toggleTrans);
-      if (state.showOriginalMap.has(seq)) state.showOriginalMap.delete(seq);
-      else state.showOriginalMap.add(seq);
-      renderBoard();
-      if (state.tab === 'graph') renderGraphView();
-      return;
-    }
-
-    const jumpEl = ev.target.closest('[data-jump-seq]');
-    if (jumpEl) {
-      const seq = Number(jumpEl.dataset.jumpSeq);
-      setActiveTab('board');
-      const card = document.querySelector(`.msg-card[data-seq="${seq}"]`);
-      if (card) {
-        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        card.classList.add('highlight');
-        setTimeout(() => card.classList.remove('highlight'), 1800);
-      }
-      return;
-    }
-
-    const insMention = ev.target.closest('[data-insert-mention]');
-    if (insMention) {
-      const inp = $('#composer-text');
-      const tok = insMention.dataset.insertMention;
-      inp.value = inp.value ? `${inp.value.trimEnd()} ${tok} ` : `${tok} `;
-      inp.focus();
-      return;
-    }
-
-    const mentionMember = ev.target.closest('[data-mention-member]');
-    if (mentionMember) {
-      setActiveTab('board');
-      const inp = $('#composer-text');
-      inp.value = `@${mentionMember.dataset.mentionMember} `;
-      inp.focus();
-      return;
-    }
-
-    const killBtn = ev.target.closest('[data-kill-member]');
-    if (killBtn) {
-      const name = killBtn.dataset.killMember;
-      await api(`/api/swarms/${encodeURIComponent(state.currentSwarmId)}/members/${encodeURIComponent(name)}?force=true`, {
-        method: 'DELETE'
-      });
-      await refreshCurrentSwarm();
-      return;
-    }
-
-    const mergeMrBtn = ev.target.closest('[data-merge-mr]');
-    if (mergeMrBtn) {
-      const iid = mergeMrBtn.dataset.mergeMr;
-      await api(`/api/swarms/${encodeURIComponent(state.currentSwarmId)}/gitlab/mrs/${iid}/merge`, {
-        method: 'POST',
-        body: JSON.stringify({})
-      });
-      await refreshCurrentSwarm();
-      return;
+  $('#btn-refresh-logs')?.addEventListener('click', async () => {
+    if (!state.currentSwarmId) return;
+    try {
+      const data = await api(`/api/swarms/${encodeURIComponent(state.currentSwarmId)}/logs?limit=120`);
+      state.agentLogs = data.logs || [];
+      renderAgentLogs();
+    } catch (err) {
+      showToast(err.message);
     }
   });
 
-  // Composer submit
+  document.addEventListener('change', async (ev) => {
+    try {
+      const taskSel = ev.target.closest('[data-select-task-status]');
+      if (taskSel) {
+        const taskId = taskSel.dataset.selectTaskStatus;
+        await api(`/api/swarms/${encodeURIComponent(state.currentSwarmId)}/tasks/${encodeURIComponent(taskId)}`, {
+          method: 'PUT',
+          body: JSON.stringify({ status: taskSel.value })
+        });
+        await refreshCurrentSwarm();
+        return;
+      }
+
+      const critChk = ev.target.closest('[data-toggle-criterion]');
+      if (critChk && state.activeIssueId) {
+        const cid = critChk.dataset.toggleCriterion;
+        const updated = await api(
+          `/api/swarms/${encodeURIComponent(state.currentSwarmId)}/tasks/${encodeURIComponent(state.activeIssueId)}/criteria/${encodeURIComponent(cid)}`,
+          {
+            method: 'POST',
+            body: JSON.stringify({ checked: critChk.checked })
+          }
+        );
+        const idx = state.tasks.findIndex((x) => x.id === updated.id);
+        if (idx >= 0) state.tasks[idx] = updated;
+        renderIssueDrawer({ refreshCurrentSwarm });
+        renderKanban({ renderTopStatus, refreshCurrentSwarm, renderMemberModalHelpers });
+      }
+    } catch (err) {
+      showToast(err.message);
+    }
+  });
+
+  $('#issue-drawer')?.addEventListener('click', (ev) => {
+    if (ev.target === $('#issue-drawer')) closeIssueDrawer();
+  });
+
+  document.addEventListener('click', async (ev) => {
+    try {
+      const scopeBtn = ev.target.closest('[data-issue-scope]');
+      if (scopeBtn) {
+        state.issueFilters.scope = scopeBtn.dataset.issueScope;
+        renderKanban({ renderTopStatus, refreshCurrentSwarm, renderMemberModalHelpers });
+        return;
+      }
+
+      const statusTabBtn = ev.target.closest('[data-issue-status]');
+      if (statusTabBtn) {
+        state.issueFilters.status = statusTabBtn.dataset.issueStatus;
+        renderKanban({ renderTopStatus, refreshCurrentSwarm, renderMemberModalHelpers });
+        return;
+      }
+
+      const colAddBtn = ev.target.closest('[data-col-quick-add]');
+      if (colAddBtn) {
+        const stSel = $('#kb-status');
+        const titleInp = $('#kb-title');
+        if (stSel) stSel.value = colAddBtn.dataset.colQuickAdd;
+        if (titleInp) titleInp.focus();
+        return;
+      }
+
+      const kbCatBtn = ev.target.closest('[data-kb-cat]');
+      if (kbCatBtn) {
+        state.knowledgeFilters.category = kbCatBtn.dataset.kbCat;
+        renderKnowledge({ renderTopStatus, refreshCurrentSwarm });
+        return;
+      }
+
+      if (ev.target.closest('#btn-world-refresh') && state.currentSwarmId) {
+        state.worldModel = await api(`/api/swarms/${encodeURIComponent(state.currentSwarmId)}/world-model/refresh`, {
+          method: 'POST',
+          body: JSON.stringify({})
+        });
+        renderWorldWiki();
+        return;
+      }
+
+      if (ev.target.closest('#btn-run-audit') && state.currentSwarmId) {
+        state.worldAudit = await api(`/api/swarms/${encodeURIComponent(state.currentSwarmId)}/audit`, {
+          method: 'POST',
+          body: JSON.stringify({ createIssues: false })
+        });
+        renderWorldWiki();
+        return;
+      }
+
+      if (ev.target.closest('#btn-run-audit-issues') && state.currentSwarmId) {
+        state.worldAudit = await api(`/api/swarms/${encodeURIComponent(state.currentSwarmId)}/audit`, {
+          method: 'POST',
+          body: JSON.stringify({ createIssues: true })
+        });
+        await refreshCurrentSwarm();
+        renderWorldWiki();
+        return;
+      }
+
+      const pickImpactBtn = ev.target.closest('[data-pick-impact-file]');
+      if (pickImpactBtn && state.currentSwarmId) {
+        const targetFile = pickImpactBtn.dataset.pickImpactFile;
+        state.impactQuery = targetFile;
+        state.worldImpact = await api(`/api/swarms/${encodeURIComponent(state.currentSwarmId)}/world-model/impact`, {
+          method: 'POST',
+          body: JSON.stringify({ targets: [targetFile] })
+        });
+        renderWorldWiki();
+        return;
+      }
+
+      const wikiNavBtn = ev.target.closest('[data-select-wiki-slug]');
+      if (wikiNavBtn) {
+        state.activeWikiSlug = wikiNavBtn.dataset.selectWikiSlug;
+        state.wikiEditMode = false;
+        state.wikiDraft = null;
+        renderWorldWiki();
+        return;
+      }
+
+      if (ev.target.closest('#btn-wiki-generate') && state.currentSwarmId) {
+        const res = await api(`/api/swarms/${encodeURIComponent(state.currentSwarmId)}/wiki/generate`, {
+          method: 'POST',
+          body: JSON.stringify({})
+        });
+        state.wikiPages = res.pages || [];
+        state.wikiEditMode = false;
+        renderTopStatus();
+        renderWorldWiki();
+        return;
+      }
+
+      if (ev.target.closest('#btn-wiki-new')) {
+        state.wikiEditMode = true;
+        state.wikiDraft = {
+          isNew: true,
+          slug: '',
+          title: '',
+          category: 'decision',
+          summary: '新建项目档案页',
+          content: '# 专题标题\n\n## 背景与目标\n\n## 核心结论\n- '
+        };
+        renderWorldWiki();
+        return;
+      }
+
+      if (ev.target.closest('#btn-wiki-edit-current')) {
+        const curr = (state.wikiPages || []).find((p) => p.slug === state.activeWikiSlug);
+        if (curr) {
+          state.wikiEditMode = true;
+          state.wikiDraft = {
+            isNew: false,
+            slug: curr.slug,
+            title: curr.title,
+            category: curr.category,
+            summary: '',
+            content: curr.content
+          };
+          renderWorldWiki();
+        }
+        return;
+      }
+
+      if (ev.target.closest('#btn-wiki-cancel-edit')) {
+        state.wikiEditMode = false;
+        state.wikiDraft = null;
+        renderWorldWiki();
+        return;
+      }
+
+      const drawerActionBtn = ev.target.closest('[data-drawer-action]');
+      if (drawerActionBtn) {
+        const action = drawerActionBtn.dataset.drawerAction;
+        const taskId = drawerActionBtn.dataset.taskId;
+        const encSw = encodeURIComponent(state.currentSwarmId);
+        const encTk = encodeURIComponent(taskId);
+        if (action === 'approve-spec') {
+          await api(`/api/swarms/${encSw}/tasks/${encTk}/approve-spec`, {
+            method: 'POST',
+            body: JSON.stringify({ spec: $('#drawer-spec-input')?.value, postToBoard: true })
+          });
+        } else if (action === 'start') {
+          await api(`/api/swarms/${encSw}/tasks/${encTk}/start`, {
+            method: 'POST',
+            body: JSON.stringify({ dispatchBoard: true })
+          });
+        } else if (action === 'accept') {
+          await api(`/api/swarms/${encSw}/tasks/${encTk}/accept`, {
+            method: 'POST',
+            body: JSON.stringify({ reviewer: 'coordinator', summary: '验收清单核对通过', postToBoard: true })
+          });
+        } else if (action === 'claim') {
+          await api(`/api/swarms/${encSw}/tasks/${encTk}/claim`, {
+            method: 'POST',
+            body: JSON.stringify({ member: 'coordinator' })
+          });
+        } else if (action === 'release') {
+          await api(`/api/swarms/${encSw}/tasks/${encTk}/release`, {
+            method: 'POST',
+            body: JSON.stringify({})
+          });
+        } else if (action === 'research') {
+          const tk = state.tasks.find((x) => x.id === taskId);
+          await api(`/api/swarms/${encSw}/research`, {
+            method: 'POST',
+            body: JSON.stringify({ topic: tk?.title || 'Issue 技术调研', linkedIssueId: taskId, postToBoard: true })
+          });
+          const kbData = await api(`/api/swarms/${encSw}/knowledge`);
+          state.knowledge = kbData.entries || [];
+        }
+        await refreshCurrentSwarm();
+        renderIssueDrawer({ refreshCurrentSwarm });
+        return;
+      }
+
+      const chBtn = ev.target.closest('[data-filter-ch]');
+      if (chBtn) {
+        state.filters.channel = chBtn.dataset.filterCh;
+        renderBoard();
+        return;
+      }
+
+      const kindBtn = ev.target.closest('[data-filter-kind]');
+      if (kindBtn) {
+        state.filters.kind = kindBtn.dataset.filterKind;
+        renderBoard();
+        return;
+      }
+
+      const transBtn = ev.target.closest('[data-toggle-trans]');
+      if (transBtn) {
+        const seq = Number(transBtn.dataset.toggleTrans);
+        if (state.showOriginalMap.has(seq)) state.showOriginalMap.delete(seq);
+        else state.showOriginalMap.add(seq);
+        renderBoard();
+        if (state.tab === 'graph') renderGraphView().catch(() => {});
+        return;
+      }
+
+      const jumpEl = ev.target.closest('[data-jump-seq]');
+      if (jumpEl) {
+        const seq = Number(jumpEl.dataset.jumpSeq);
+        setActiveTab('board');
+        const card = document.querySelector(`.msg-card[data-seq="${seq}"]`);
+        if (card) {
+          card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          card.classList.add('highlight');
+          setTimeout(() => card.classList.remove('highlight'), 1800);
+        }
+        return;
+      }
+
+      const moveTaskBtn = ev.target.closest('[data-move-task]');
+      if (moveTaskBtn) {
+        await api(`/api/swarms/${encodeURIComponent(state.currentSwarmId)}/tasks/${encodeURIComponent(moveTaskBtn.dataset.moveTask)}`, {
+          method: 'PUT',
+          body: JSON.stringify({ status: moveTaskBtn.dataset.moveTo })
+        });
+        await refreshCurrentSwarm();
+        return;
+      }
+
+      const openIssueBtn = ev.target.closest('[data-open-issue-btn]');
+      if (openIssueBtn) {
+        await openIssueDrawer(openIssueBtn.dataset.openIssueBtn, { refreshCurrentSwarm });
+        return;
+      }
+
+      const openIssueCard = ev.target.closest('[data-open-issue]');
+      if (openIssueCard && !ev.target.closest('[data-stop-card-open]')) {
+        await openIssueDrawer(openIssueCard.dataset.openIssue, { refreshCurrentSwarm });
+        return;
+      }
+
+      const toggleNotesBtn = ev.target.closest('[data-toggle-issue-notes]');
+      if (toggleNotesBtn) {
+        const iid = Number(toggleNotesBtn.dataset.toggleIssueNotes);
+        if (state.openIssueNotes.has(iid)) {
+          state.openIssueNotes.delete(iid);
+          renderGitLab({ refreshCurrentSwarm });
+        } else {
+          state.openIssueNotes.add(iid);
+          await loadIssueNotes(iid);
+          renderGitLab({ refreshCurrentSwarm });
+        }
+        return;
+      }
+
+      const presetBtn = ev.target.closest('[data-apply-preset]');
+      if (presetBtn) {
+        const preset = state.presets.find((p) => p.id === presetBtn.dataset.applyPreset);
+        if (preset) {
+          $('#m-name').value = preset.nameSuggestion || '';
+          $('#m-role').value = preset.role;
+          $('#m-driver').value = preset.driver;
+          $('#m-workspace').value = preset.workspace || 'inherit';
+          $('#m-owns').value = (preset.owns || []).join(', ');
+          $('#m-forbid').value = (preset.mustNotTouch || []).join(', ');
+          $('#m-brief').value = preset.brief || '';
+          document.querySelectorAll('.preset-chip').forEach((c) => c.classList.toggle('active', c === presetBtn));
+          syncMemberModalDynamicFields();
+        }
+        return;
+      }
+
+      const attachTwinBtn = ev.target.closest('[data-attach-twin]');
+      if (attachTwinBtn) {
+        await api(
+          `/api/swarms/${encodeURIComponent(state.currentSwarmId)}/twins/${encodeURIComponent(attachTwinBtn.dataset.attachTwin)}/attach`,
+          { method: 'POST', body: JSON.stringify({}) }
+        );
+        await refreshCurrentSwarm();
+        return;
+      }
+
+      const focusLogsBtn = ev.target.closest('[data-focus-logs]');
+      if (focusLogsBtn) {
+        state.logsMemberFilter = focusLogsBtn.dataset.focusLogs;
+        renderAgentLogs();
+        $('#agent-logs-panel')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+
+      const resetSessBtn = ev.target.closest('[data-reset-session]');
+      if (resetSessBtn) {
+        await api(
+          `/api/swarms/${encodeURIComponent(state.currentSwarmId)}/members/${encodeURIComponent(resetSessBtn.dataset.resetSession)}/session/reset`,
+          { method: 'POST', body: JSON.stringify({}) }
+        );
+        await refreshCurrentSwarm();
+        return;
+      }
+
+      const testImBtn = ev.target.closest('[data-test-im]');
+      if (testImBtn) {
+        try {
+          await api(
+            `/api/swarms/${encodeURIComponent(state.currentSwarmId)}/members/${encodeURIComponent(testImBtn.dataset.testIm)}/channel/test`,
+            { method: 'POST', body: JSON.stringify({}) }
+          );
+          testImBtn.textContent = '✓ 已推送测试';
+        } catch (err) {
+          testImBtn.textContent = `✕ ${err.message.slice(0, 20)}`;
+        }
+        return;
+      }
+
+      const insMention = ev.target.closest('[data-insert-mention]');
+      if (insMention) {
+        const inp = $('#composer-text');
+        const tok = insMention.dataset.insertMention;
+        inp.value = inp.value ? `${inp.value.trimEnd()} ${tok} ` : `${tok} `;
+        inp.focus();
+        return;
+      }
+
+      const mentionMember = ev.target.closest('[data-mention-member]');
+      if (mentionMember) {
+        setActiveTab('board');
+        const inp = $('#composer-text');
+        inp.value = `@${mentionMember.dataset.mentionMember} `;
+        inp.focus();
+        return;
+      }
+
+      const killBtn = ev.target.closest('[data-kill-member]');
+      if (killBtn) {
+        await api(
+          `/api/swarms/${encodeURIComponent(state.currentSwarmId)}/members/${encodeURIComponent(killBtn.dataset.killMember)}?force=true`,
+          { method: 'DELETE' }
+        );
+        await refreshCurrentSwarm();
+        return;
+      }
+
+      const mergeMrBtn = ev.target.closest('[data-merge-mr]');
+      if (mergeMrBtn) {
+        await api(
+          `/api/swarms/${encodeURIComponent(state.currentSwarmId)}/gitlab/mrs/${encodeURIComponent(mergeMrBtn.dataset.mergeMr)}/merge`,
+          { method: 'POST', body: JSON.stringify({}) }
+        );
+        await refreshCurrentSwarm();
+      }
+    } catch (err) {
+      showToast(err.message);
+    }
+  });
+
   const sendComposer = async () => {
-    const text = $('#composer-text').value.trim();
-    if (!text || !state.currentSwarmId) return;
-    await api(`/api/swarms/${encodeURIComponent(state.currentSwarmId)}/messages`, {
-      method: 'POST',
-      body: JSON.stringify({
-        author: 'coordinator',
-        text,
-        channel: $('#composer-channel').value || 'main'
-      })
-    });
-    $('#composer-text').value = '';
-    await refreshCurrentSwarm();
+    try {
+      const text = $('#composer-text').value.trim();
+      if (!text || !state.currentSwarmId) return;
+      await api(`/api/swarms/${encodeURIComponent(state.currentSwarmId)}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({
+          author: 'coordinator',
+          text,
+          channel: $('#composer-channel').value || 'main'
+        })
+      });
+      $('#composer-text').value = '';
+      await refreshCurrentSwarm();
+    } catch (err) {
+      showToast(err.message);
+    }
   };
   $('#composer-send').addEventListener('click', sendComposer);
   $('#composer-text').addEventListener('keydown', (ev) => {
     if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') sendComposer();
   });
 
-  // Graph controls
-  $('#graph-slider').addEventListener('input', async (ev) => {
+  $('#graph-slider').addEventListener('input', (ev) => {
     state.graph.upToSeq = Number(ev.target.value);
-    await renderGraphView();
+    renderGraphView().catch(() => {});
   });
-  $('#graph-first-btn').addEventListener('click', async () => {
+  $('#graph-first-btn').addEventListener('click', () => {
     state.graph.upToSeq = state.messages.length ? 1 : 0;
-    await renderGraphView();
+    renderGraphView().catch(() => {});
   });
-  $('#graph-prev-btn').addEventListener('click', async () => {
+  $('#graph-prev-btn').addEventListener('click', () => {
     state.graph.upToSeq = Math.max(1, (state.graph.upToSeq || 1) - 1);
-    await renderGraphView();
+    renderGraphView().catch(() => {});
   });
-  $('#graph-next-btn').addEventListener('click', async () => {
+  $('#graph-next-btn').addEventListener('click', () => {
     state.graph.upToSeq = Math.min(state.messages.length, (state.graph.upToSeq || 0) + 1);
-    await renderGraphView();
+    renderGraphView().catch(() => {});
   });
   $('#graph-play-btn').addEventListener('click', toggleGraphPlay);
-  $('#graph-live-btn').addEventListener('click', async () => {
+  $('#graph-live-btn').addEventListener('click', () => {
     state.graph.upToSeq = state.messages.length;
-    await renderGraphView();
+    renderGraphView().catch(() => {});
   });
-  $('#graph-hide-inactive').addEventListener('change', async (ev) => {
+  $('#graph-hide-inactive').addEventListener('change', (ev) => {
     state.graph.hideInactive = ev.target.checked;
-    await renderGraphView();
+    renderGraphView().catch(() => {});
   });
-  $('#graph-expand-all').addEventListener('change', async (ev) => {
+  $('#graph-expand-all').addEventListener('change', (ev) => {
     state.graph.expandAll = ev.target.checked;
-    await renderGraphView();
+    renderGraphView().catch(() => {});
   });
   $('#graph-speed').addEventListener('change', (ev) => {
     state.graph.speed = Number(ev.target.value) || 1;
+    if (state.graph.playing) startGraphPlayTimer();
   });
 
-  // Modals
-  $('#btn-add-member').addEventListener('click', () => $('#modal-member').classList.add('open'));
+  $('#m-role').addEventListener('change', () => {
+    if ($('#m-role').value === 'digital_twin') $('#m-driver').value = 'digital-twin';
+    syncMemberModalDynamicFields();
+  });
+  $('#m-driver').addEventListener('change', syncMemberModalDynamicFields);
+  $('#twin-im-type').addEventListener('change', syncMemberModalDynamicFields);
+  $('#m-name').addEventListener('input', syncMemberModalDynamicFields);
+
+  $('#btn-add-member').addEventListener('click', () => {
+    renderMemberModalHelpers();
+    $('#modal-member').classList.add('open');
+  });
   $('#btn-close-member').addEventListener('click', () => $('#modal-member').classList.remove('open'));
   $('#form-add-member').addEventListener('submit', async (ev) => {
     ev.preventDefault();
-    const ownsRaw = $('#m-owns').value.trim();
-    const forbidRaw = $('#m-forbid').value.trim();
-    await api(`/api/swarms/${encodeURIComponent(state.currentSwarmId)}/members`, {
-      method: 'POST',
-      body: JSON.stringify({
-        name: $('#m-name').value.trim(),
-        role: $('#m-role').value,
-        driver: $('#m-driver').value,
-        model: $('#m-model').value.trim() || 'default',
-        workspace: $('#m-workspace').value,
-        owns: ownsRaw ? ownsRaw.split(',').map((s) => s.trim()).filter(Boolean) : [],
-        mustNotTouch: forbidRaw ? forbidRaw.split(',').map((s) => s.trim()).filter(Boolean) : [],
-        brief: $('#m-brief').value.trim()
-      })
-    });
-    $('#modal-member').classList.remove('open');
-    $('#form-add-member').reset();
-    await refreshCurrentSwarm();
+    try {
+      const ownsRaw = $('#m-owns').value.trim();
+      const forbidRaw = $('#m-forbid').value.trim();
+      const role = $('#m-role').value;
+      const driver = $('#m-driver').value;
+      const driverConfig = {};
+
+      if (driver === 'cli-agent') {
+        driverConfig.preset = $('#m-cli-preset').value || 'claude-code';
+      }
+
+      if (role === 'digital_twin' || driver === 'digital-twin') {
+        driverConfig.ownerName = $('#twin-owner').value.trim() || $('#m-name').value.trim();
+        driverConfig.autonomyMode = $('#twin-autonomy').value || 'hybrid';
+        driverConfig.backendDriver = $('#twin-backend').value || 'builtin';
+        driverConfig.persona = $('#twin-persona').value.trim();
+        driverConfig.knowledge = $('#twin-knowledge').value.trim();
+        const kwRaw = $('#twin-keywords').value.trim();
+        if (kwRaw) {
+          driverConfig.escalationKeywords = kwRaw.split(/[,，]+/).map((s) => s.trim()).filter(Boolean);
+        }
+        const imType = $('#twin-im-type').value;
+        if (imType) {
+          const ch = { type: imType, enabled: true };
+          document.querySelectorAll('[data-im-field]').forEach((inp) => {
+            const val = inp.value.trim();
+            if (val) ch[inp.dataset.imField] = val;
+          });
+          driverConfig.channel = ch;
+        }
+      }
+
+      await api(`/api/swarms/${encodeURIComponent(state.currentSwarmId)}/members`, {
+        method: 'POST',
+        body: JSON.stringify({
+          name: $('#m-name').value.trim(),
+          role,
+          driver,
+          model: $('#m-model').value.trim() || 'default',
+          workspace: $('#m-workspace').value,
+          owns: ownsRaw ? ownsRaw.split(',').map((s) => s.trim()).filter(Boolean) : [],
+          mustNotTouch: forbidRaw ? forbidRaw.split(',').map((s) => s.trim()).filter(Boolean) : [],
+          brief: $('#m-brief').value.trim(),
+          driverConfig,
+          saveAsTwin: Boolean((role === 'digital_twin' || driver === 'digital-twin') && $('#twin-save-library')?.checked)
+        })
+      });
+      $('#modal-member').classList.remove('open');
+      $('#form-add-member').reset();
+      syncMemberModalDynamicFields();
+      await refreshCurrentSwarm();
+    } catch (err) {
+      showToast(err.message);
+    }
   });
 
   $('#btn-new-swarm').addEventListener('click', () => $('#modal-swarm').classList.add('open'));
   $('#btn-close-swarm').addEventListener('click', () => $('#modal-swarm').classList.remove('open'));
   $('#form-new-swarm').addEventListener('submit', async (ev) => {
     ev.preventDefault();
-    const created = await api('/api/swarms', {
-      method: 'POST',
-      body: JSON.stringify({
-        title: $('#s-title').value.trim(),
-        templateId: $('#s-template').value || null
-      })
-    });
-    state.currentSwarmId = created.id;
-    $('#modal-swarm').classList.remove('open');
-    $('#form-new-swarm').reset();
-    await refreshAll();
+    try {
+      const created = await api('/api/swarms', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: $('#s-title').value.trim(),
+          templateId: $('#s-template').value || null
+        })
+      });
+      state.currentSwarmId = created.id;
+      $('#modal-swarm').classList.remove('open');
+      $('#form-new-swarm').reset();
+      connectSse();
+      await refreshAll();
+    } catch (err) {
+      showToast(err.message);
+    }
   });
 }
 
 async function boot() {
   applyStaticLabels();
   bindEvents();
+  await refreshMetadata();
   await refreshAll();
   connectSse();
   window.__YUNYU_READY = true;
@@ -787,4 +969,5 @@ async function boot() {
 
 boot().catch((err) => {
   console.error('[Yunyu UI] Boot failed:', err);
+  showToast(err.message || '界面初始化失败');
 });

@@ -10,6 +10,7 @@ syntax_check:
   stage: lint
   script:
     - npm run check
+    - npm run audit
 
 unit_and_integration_tests:
   stage: test
@@ -24,3 +25,4 @@ ownership_and_demo_smoke:
     - apt-get update -qq && apt-get install -y -qq git >/dev/null
   script:
     - node bin/yunyu.mjs demo --once --port 0
+    - node bin/yunyu.mjs wiki --out /tmp/yunyu-wiki-smoke

@@ -1,68 +1,69 @@
 # 云驭协同（Yunyu Teamwork）
 
-> **零外部依赖的开源多 Agent 蜂群协同研发与 GitLab 项目管理平台** — 让异构 AI 编程智能体（Claude Code / Codex CLI / Gemini CLI / DeepSeek / 通义千问 / OpenAI / Ollama / Dify / LangGraph / MCP 客户端）与人类工程师在同一共享看板上安全、高效、全中文地完成软件项目的开发、验证与发布管理。
+> **零外部依赖的开源多 Agent 蜂群协同研发、项目世界模型、活文档 Wiki 与 GitLab 双向联动平台** — 让异构 AI 编程智能体（Claude Code / Codex CLI / Gemini CLI / DeepSeek / 通义千问 / OpenAI / Ollama / Dify / LangGraph / MCP 客户端 / 个人数字分身）与人类工程师在同一共享看板上安全、透明、全中文地完成软件项目的调研、规划、并发开发、验证与发布管理。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-38e8ff.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/Version-0.4.0-60a5fa.svg)](CHANGELOG.md)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.0.0-34d399.svg)](package.json)
 [![Zero Dependencies](https://img.shields.io/badge/Dependencies-0%20runtime%20deps-fbbf24.svg)](package.json)
 [![GitLab](https://img.shields.io/badge/GitLab-API%20v4%20%2B%20Webhooks-fb923c.svg)](docs/GITLAB_INTEGRATION.md)
-[![MCP](https://img.shields.io/badge/MCP-JSON--RPC%202.0-a78bfa.svg)](docs/PROTOCOL.md)
+[![MCP](https://img.shields.io/badge/MCP-JSON--RPC%202.0%20(30%20tools)-a78bfa.svg)](docs/PROTOCOL.md)
 
-[English README](README.en.md) · [系统架构深潜](docs/ARCHITECTURE.md) · [异构 Agent 与 MCP 接入协议](docs/PROTOCOL.md) · [GitLab 集成指南](docs/GITLAB_INTEGRATION.md) · [开发交接与路线图 HANDOFF.md](docs/HANDOFF.md) · [工程契约 AGENTS.md](AGENTS.md)
-
----
-
-## 为什么构建 Yunyu Teamwork？
-
-单个 AI 编程助手写代码已经很强，但在真实软件工程中，一旦尝试让多个 Agent 并行开发同一个仓库，往往立刻遇到五大痛点：
-1. **并发写冲突**：两个 Agent 同时改坏同一个文件或构建产物；
-2. **QA 自证偏差**：写代码的 Agent 自己放宽测试断言“伪造绿灯”；
-3. **黑盒与停滞**：多个 Agent 互相等待却没人推进，或者英文原始日志人类难以快速审阅阶段交付；
-4. **模型与工具锁定**：无法把 Claude Code、Codex CLI、Gemini CLI、本地 Ollama 与企业内部 Dify/LangGraph 编排到同一个项目里；
-5. **与 GitLab 脱节**：代码协作过程没有沉淀回 GitLab Issue、Merge Request、Scoped Labels 与 CI Pipeline。
-
-**云驭协同（Yunyu Teamwork）** 将经过实战验证的 **Swarm 蜂群协同机制** 抽离为独立开源、可内网自托管的工程服务：
-
-- **追加式共享留言板 + `@mention` 零轮询唤醒**：单调递增 `#seq` JSONL 持久化审计日志、频道分流（`main` / `#backend` / `#frontend` / `#qa`）、`@member` / `@#channel` / `@all` 精准门铃唤醒、`#seq` 交叉引用；内置**非破坏性双语显示注解层**，支持在看板与图谱中直接查看中文译文并一键对比原文。
-- **真实 Git Worktree 物理隔离（`share` / `branch` / `inherit`）**：并发作者在独立 `git worktree` 分支开发与自测，合并前强制通过所有权审计，销毁成员前默认拦截未合并改动防丢失。
-- **文件所有权契约（`CONTRACT.json`）与 QA 读写隔离铁律**：在工具写入、Git 提交、分支合并三道防线实时执行 glob 路径校验；`role === "verifier"` / `qa` 成员**硬性禁止写入 `src/` 与 `web/`**，发现缺陷必须通过 `@author` 开具结构化缺陷工单交回原作者修复。
-- **全异构 Agent 即插即用**：内置 `openai-compatible`、`cli-agent`（Claude Code / Codex CLI / Gemini CLI）、`webhook`（HMAC-SHA256 签名）、`human`（人类门禁）、`simulated`（零 Key 离线演示）5 大驱动 + 标准 **MCP JSON-RPC 2.0 服务端**（stdio & HTTP）。
-- **原生 GitLab 双向项目管理闭环**：支持 `gitlab.com` 与企业自托管 GitLab CE/EE；Webhook 验签自动将 Issue / MR / Note / Pipeline 路由进看板，同时把阶段交付、QA 缺陷单与 `[done]` 归档自动镜像回 GitLab 评论区并驱动 `teamwork::*` Scoped Labels 状态流转。
+[English README](README.en.md) · [更新日志 CHANGELOG](CHANGELOG.md) · [项目活文档 Wiki](docs/wiki/README.md) · [行业对标白皮书](docs/BENCHMARK_AND_INTEGRATION.md) · [系统架构](docs/ARCHITECTURE.md) · [Agent 与 MCP 协议](docs/PROTOCOL.md) · [GitLab 集成指南](docs/GITLAB_INTEGRATION.md) · [安全策略](SECURITY.md) · [工程契约 AGENTS.md](AGENTS.md)
 
 ---
 
-## Web 协同看板实机截图（原生全中文暗黑界面）
+## 核心能力全景（v0.4.0）
 
-| 共享留言板与非破坏性中文译文注解（Board） | 协作拓扑图与时间轴回放（Graph Replay） |
+- **项目世界模型（Project World Model）与变更爆炸半径模拟**：纯零依赖静态扫描代码依赖图、模块导出符号、高扇入核心枢纽（Hubs）与 DFS 循环依赖；修改源码前一键模拟**变更爆炸半径**（直接/传递上游模块、关联回归测试、联动责任人与工程不变量提醒），自动为 Agent 注入项目上下文简报。
+- **活文档项目 Wiki 档案（Living Project Wiki）**：基于追加式 `events.jsonl` 实现版本化不可变项目 Wiki，支持从世界模型、共享知识库与审计结果一键生成/重建多页活文档（含 Mermaid 架构拓扑图与模块域深潜档案），并支持 `yunyu wiki` 导出为仓库内 Markdown 档案（`docs/wiki/`）。
+- **全仓多视角自动审计引擎（Project Auditor）**：内置 `yunyu audit` 与 Web 审计面板，自动核查零外部依赖铁律、硬编码密钥、危险动态执行、不安全 Shell 拼接、循环依赖、所有权冲突与版本号一致性，支持一键将 P0/P1 缺陷转为待开始 Issue。
+- **Qoder 风格 6 态 Issue 管理中心 + Beads DAG + Vibe Diff 审查**：支持 `待规划 → 待开始 → 进行中 → 待验收 → 已完成 / 已取消`（`ISS-N` 编号）、Spec-Driven 规格冻结与验收清单勾选、`dependsOn` DAG 依赖环检测与 `ready` 就绪队列、TTL 原子认领租约，以及右侧滑出抽屉内嵌着色 Git Diff 在线审查与一键验收/打回返工。
+- **Paperclip 风格预算与成本治理（Budget Governor）**：蜂群级与成员级 Token / 轮次 / USD 费用上限、80% 独立预警与 100% 自动熔断，防止多 Agent 失控烧钱。
+- **信息搜集整合 Agent + 追加式共享知识库（Knowledge Vault）**：内置只读 `researcher` 角色与 `research-synthesizer` 驱动，跨源采集仓库源码/文档 + SSRF 防护网页正文 + 蜂群历史，生成带 `[1][2]` 引用编号的中文调研报告并持久化沉淀。
+- **个人数字分身（Digital Twin）+ 6 渠道 IM/Bot 双向通信网桥**：支持用户自定义个人数字分身档案库（`.yunyu/twins.json`，跨蜂群一键挂载），内置 `hybrid` 混合审批托管，零依赖原生接入 **飞书/Lark、企业微信、钉钉、Telegram、Slack/Discord 与通用 HMAC-SHA256 Webhook**。
+- **7 大异构 Agent 驱动 + 真实 Git Worktree 隔离 + 原生 GitLab 双向联动**：内置 `openai-compatible`、`cli-agent`（Claude Code / Codex CLI 实时流式日志与 `--resume` 会话复用 / Gemini CLI）、`research-synthesizer`、`digital-twin`、`webhook`、`human`、`simulated` 7 大驱动 + 标准 **MCP JSON-RPC 2.0 服务端（30 个工具 + 2 类资源）**；重启自动恢复 Worktree、会话与 GitLab 连接；`OwnershipGuard` 强制保障作者互斥与 `verifier` / `reviewer` / `researcher` / `qa` 对 `src/` 与 `web/` 只读隔离。
+
+---
+
+## Web 协同看板实机截图（原生暗黑双语 · 8 大实时视图）
+
+| 共享留言板与非破坏性中文译文注解（Board） | Qoder 风格 6 态 Issue 看板（Issues Kanban） |
 | :---: | :---: |
-| ![云驭协同中文留言板](docs/showcase/ui_board_zh.png) | ![协作拓扑图与时间轴回放](docs/showcase/ui_graph_replay_zh.png) |
-| **GitLab 项目联动面板（Issues / MRs / Pipelines）** | **文件所有权契约与实时 QA 禁改守卫（Contract）** |
+| ![云驭协同中文留言板](docs/showcase/ui_board_zh.png) | ![Qoder 风格 6 态 Issue 看板](docs/showcase/ui_kanban_zh.png) |
+| **Issue 详情抽屉：Spec / 验收清单 / 在线 Diff** | **共享情报知识库与多源调研（Knowledge Vault）** |
+| ![Issue 详情抽屉与在线 Git Diff](docs/showcase/ui_issue_drawer_zh.png) | ![共享情报与项目知识库](docs/showcase/ui_knowledge_zh.png) |
+| **项目世界模型、爆炸半径与活文档 Wiki（World & Wiki）** | **协作拓扑图与时间轴回放（Graph Replay）** |
+| ![项目世界模型与活文档 Wiki](docs/showcase/ui_world_wiki_zh.png) | ![协作拓扑图与时间轴回放](docs/showcase/ui_graph_replay_zh.png) |
+| **GitLab 项目联动与 Issue 评论回复（GitLab）** | **预算治理、所有权契约与工作树审计（Contract）** |
 | ![GitLab 联动管理面板](docs/showcase/ui_gitlab_panel.png) | ![文件所有权契约与工作树审计](docs/showcase/ui_contract_worktrees.png) |
 
 ---
 
-## 30 秒极速上手（零 `npm install` 依赖）
+## 30 秒极速上手（零 `npm install` 运行时依赖）
 
-环境要求：**Node.js `>= 22.0.0`** 与 **Git**（零外部 npm 运行时依赖，内网离线环境开箱即用）。
+环境要求：**Node.js `>= 22.0.0`** 与 **Git**（零外部 npm 依赖，内网离线环境开箱即用）。
 
 ```bash
-# 1. 进入项目目录
+# 1. 克隆仓库
+git clone https://github.com/yunyu-x/yunyu-teamwork.git
 cd yunyu-teamwork
 
 # 2. 一键体验离线全链路演示（无需 API Key / 无需真实 GitLab 账号）
-#    自动创建真实沙盒 Git 仓库 + Git Worktree 隔离 + 本地 GitLab v4 模拟服务
-#    + 6 角色完整演练（架构冻结 → 并行开发 → QA 第 1 轮拦截缺陷 → 自动修复 → MR 合并）
+#    自动创建沙盒 Git 仓库 + Git Worktree 隔离 + 本地 GitLab v4 模拟
+#    + 6 角色协同交付（架构冻结 → 并行开发 → QA 拦截返工 → MR 合并）+ 世界模型 & Wiki
 npm run demo
-# 浏览器打开 http://127.0.0.1:4310 即可体验五大视图与图谱时间轴回放！
+# 浏览器打开 http://127.0.0.1:4310 即可体验全部 8 大实时视图！
 
-# 3. 接入真实 GitLab 仓库并启动生产服务
-cp .env.example .env    # 填写 GITLAB_BASE_URL / GITLAB_TOKEN / GITLAB_PROJECT_ID / YUNYU_REPO_PATH
+# 3. 对当前或目标仓库执行一键全仓架构/安全审计 & 导出活文档 Wiki
+npm run audit
+npm run wiki
+
+# 4. 接入真实 GitLab 仓库并启动生产服务
+cp .env.example .env    # 配置 GITLAB_BASE_URL / GITLAB_TOKEN / GITLAB_PROJECT_ID / YUNYU_API_TOKEN
 npm start
 
-# 4. 在任意 GitLab 项目仓库中初始化 CONTRACT.json 契约模板
-node bin/yunyu.mjs init --dir /path/to/your-gitlab-repo
-
-# 5. 检查本机环境与已安装的 CLI Agent（Claude / Codex / Gemini）
+# 5. 检查本机 Node、Git 与已安装的异构 CLI Agent（Claude / Codex / Gemini）
 node bin/yunyu.mjs doctor
 ```
 
@@ -70,22 +71,22 @@ node bin/yunyu.mjs doctor
 
 ## 异构 Agent 接入速览
 
-### 1. 通过 MCP 接入 Antigravity / Claude Code / Cursor / Codex
+### 1. 通过标准 MCP 接入 Antigravity / Claude Code / Cursor / Codex
 ```json
 {
   "mcpServers": {
     "yunyu-teamwork": {
       "command": "node",
-      "args": ["d:/workspace/codex/yunyu-teamwork/bin/yunyu-mcp.mjs"],
+      "args": ["/path/to/yunyu-teamwork/bin/yunyu-mcp.mjs"],
       "env": {
-        "YUNYU_REPO_PATH": "d:/workspace/your-gitlab-project"
+        "YUNYU_REPO_PATH": "/path/to/your-project"
       }
     }
   }
 }
 ```
 
-### 2. 招募 CLI / 大模型 / Webhook / 人类成员（REST API）
+### 2. 招募 CLI / 大模型 / 数字分身 / 情报调研成员（REST API）
 ```bash
 curl -X POST http://127.0.0.1:4310/api/swarms/main-workspace/members \
   -H "Content-Type: application/json" \
@@ -101,7 +102,7 @@ curl -X POST http://127.0.0.1:4310/api/swarms/main-workspace/members \
   }'
 ```
 
-更多接入细节（DeepSeek / 通义千问 / Ollama / Dify / n8n / Webhook 签名验证）请查阅 [docs/PROTOCOL.md](docs/PROTOCOL.md) 与 [examples/](examples/)。
+更多接入协议（30 个 MCP 工具、DeepSeek / 通义千问 / Ollama / Dify / n8n / 6 渠道 IM 数字分身）请参阅 [docs/PROTOCOL.md](docs/PROTOCOL.md) 与 [examples/](examples/)。
 
 ---
 
@@ -110,41 +111,36 @@ curl -X POST http://127.0.0.1:4310/api/swarms/main-workspace/members \
 ```text
 yunyu-teamwork/
 ├── bin/
-│   ├── yunyu.mjs                       # 统一 CLI（serve / demo / init / status / post / doctor）
+│   ├── yunyu.mjs                       # 统一 CLI（serve / demo / audit / wiki / init / status / post / doctor）
 │   └── yunyu-mcp.mjs                   # 标准 MCP Server（JSON-RPC 2.0 over stdio）
 ├── src/
 │   ├── core/
-│   │   ├── constants.mjs               # 状态机、角色、频道与 GitLab Scoped Labels 常量
+│   │   ├── constants.mjs               # APP_VERSION、状态机、角色、频道与 GitLab 标签常量
 │   │   ├── storage.mjs                 # 追加式 JSONL 持久化引擎与元数据快照
-│   │   ├── board.mjs                   # 共享留言板、@mention/@#channel/@all 解析、双语注解与图谱构建
-│   │   ├── ownership.mjs               # CONTRACT.json 文件所有权守卫与 QA 禁改 src/ 硬不变量
-│   │   ├── worktree.mjs                # 真实 Git Worktree 隔离管理器（share/branch/inherit）
+│   │   ├── board.mjs                   # 共享留言板、@mention/@#channel/@all、双语注解与协作图谱
+│   │   ├── ownership.mjs               # CONTRACT.json 文件所有权守卫与只读角色隔离铁律
+│   │   ├── worktree.mjs                # 真实 Git Worktree 隔离、重启恢复与安全 Git 套件
+│   │   ├── tasks.mjs                   # Qoder 6 态 Issue 中心、Spec 冻结、Beads DAG 与 TTL 认领锁
+│   │   ├── budget.mjs                  # Paperclip 风格 Token/轮次/费用预算与熔断器
+│   │   ├── knowledge.mjs               # 追加式共享项目知识库（Knowledge Vault）
+│   │   ├── research.mjs                # 零依赖多源情报搜集与引用简报合成引擎（SSRF 防护）
+│   │   ├── world-model.mjs             # 项目世界模型：模块拓扑、核心枢纽、循环依赖与爆炸半径模拟
+│   │   ├── wiki.mjs                    # 活文档项目 Wiki 引擎：不可变修订史与 Markdown 导出
+│   │   ├── auditor.mjs                 # 全仓多视角自动审计引擎（不变量/安全/架构/发布）
+│   │   ├── twins-store.mjs             # 个人数字分身模板库持久化（.yunyu/twins.json）
 │   │   ├── monitor.mjs                 # 防停滞看门狗（StallMonitor）
-│   │   ├── orchestrator.mjs            # Swarm 总控编排与事件驱动唤醒引擎
-│   │   └── templates.mjs               # 内置中文研发/混编/MR 审查团队模板
-│   ├── drivers/
-│   │   ├── base.mjs                    # 驱动抽象契约与受所有权守卫保护的工具集
-│   │   ├── openai-compatible.mjs       # OpenAI / DeepSeek / 通义千问 / OpenRouter / Ollama 驱动
-│   │   ├── cli-agent.mjs               # Claude Code / Codex CLI / Gemini CLI / 自定义脚本驱动
-│   │   ├── webhook-agent.mjs           # HMAC-SHA256 签名远程 Webhook 驱动
-│   │   ├── human-agent.mjs             # 人类工程师与审批门禁驱动
-│   │   ├── simulated-agent.mjs         # 零 Key 离线演示与集成测试驱动
-│   │   └── registry.mjs                # 异构驱动注册中心
-│   ├── gitlab/
-│   │   ├── client.mjs                  # 零依赖 GitLab REST API v4 完整客户端
-│   │   ├── webhook.mjs                 # X-Gitlab-Token 验签与 Issue/MR/Note/Pipeline 路由
-│   │   ├── sync.mjs                    # 看板阶段交付 <-> GitLab 评论与标签双向同步器
-│   │   └── mock-server.mjs             # 内置本地 GitLab API v4 模拟服务器
-│   ├── mcp/server.mjs                  # MCP JSON-RPC 2.0 协议实现（支持 stdio 与 HTTP）
-│   ├── server/                         # 零依赖 HTTP REST API + SSE 实时事件流 + 静态 UI 服务
-│   └── demo/showcase-scenario.mjs      # 端到端真实 Git Worktree + GitLab 演练场景
-├── web/                                # 原生暗黑双语（默认简体中文）5 视图 Web 协同看板
-├── examples/                           # CONTRACT.json 与多模型混编团队配置模板
-├── docs/                               # 架构文档、接入协议、GitLab 指南与实机截图
-└── tests/
-    ├── unit/                           # 留言板、所有权守卫、真实 Git Worktree、看门狗、GitLab Webhook 单测
-    ├── integration/                    # 全链路 GitLab+Worktree E2E、MCP 协议、HTTP/SSE 集成测试
-    └── ui/cdp-ui-qa.mjs                # 无头 Chrome CDP 桌面/移动端零报错视觉验收与截图套件
+│   │   ├── orchestrator.mjs            # Swarm 总控编排、重启恢复与事件驱动唤醒引擎
+│   │   └── templates.mjs               # 内置团队模板与单角色预设库（AGENT_PRESETS）
+│   ├── channels/                       # 零依赖 6 渠道 IM/Bot 双向适配器与网桥（飞书/企微/钉钉/Telegram/Slack/Webhook）
+│   ├── drivers/                        # 7 大异构驱动（openai-compatible / cli-agent / research-synthesizer / digital-twin / webhook / human / simulated）
+│   ├── gitlab/                         # GitLab REST API v4 客户端、Webhook 路由、双向同步与 Mock 服务器
+│   ├── mcp/server.mjs                  # MCP JSON-RPC 2.0 服务端（30 工具 + 2 资源）
+│   ├── server/                         # 零依赖 HTTP REST API + SSE 实时事件流 + 安全静态服务
+│   └── demo/showcase-scenario.mjs      # 离线全链路真实 Git Worktree + GitLab + 世界模型演示剧本
+├── web/                                # 原生暗黑双语 8 视图模块化协同看板（app.js / world-wiki.js / graph.js / lib/ / views/）
+├── docs/                               # 架构文档、接入协议、行业对标、实机截图与自动导出的活文档 Wiki（docs/wiki/）
+├── examples/                           # CONTRACT.json、混编配置与本机 CLI 协同脚本
+└── tests/                              # 单元测试、安全回归测试、集成测试与无头 Chrome CDP 双端 UI 审计
 ```
 
 ---
@@ -152,12 +148,13 @@ yunyu-teamwork/
 ## 自动化测试与质量门禁
 
 ```bash
-npm run check      # 全仓 43 个 JS/MJS 文件 node --check 静态语法直检
-npm test           # 13 项单元测试 + 真实 Git Worktree + 异构驱动 + GitLab Mock + MCP + SSE 端到端测试
-npm run qa:ui      # 无头 Chrome CDP 1440×900 桌面 & 390×844 手机全视图验收
-npm run verify     # 一键执行全部门禁（check + test + qa:ui）
+npm run check      # 全仓 JS/MJS 语法直检（node --check）
+npm test           # 单元 + 安全加固回归 + 真实 Git Worktree + GitLab Mock + MCP + SSE 全量集成测试
+npm run qa:ui      # 无头 Chrome CDP 1440×900 桌面 & 390×844 手机全 8 视图零报错视觉验收
+npm run audit      # 全仓多视角工程与安全自动审计（目标 100/100）
+npm run verify     # 一键完整发布门禁（check + test + qa:ui + audit）
 ```
 
 ## 开源协议
 
-本项目基于 [MIT License](LICENSE) 开源发布。
+本项目基于 [MIT License](LICENSE) 开源发布，欢迎参阅 [CONTRIBUTING.md](CONTRIBUTING.md) 参与共建。

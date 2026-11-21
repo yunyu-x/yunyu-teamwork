@@ -36,7 +36,7 @@ export class WebhookAgentDriver extends AgentDriver {
     const body = JSON.stringify(payload);
     const headers = {
       'Content-Type': 'application/json',
-      'User-Agent': 'Yunyu-Teamwork/0.1.0',
+      'User-Agent': 'Yunyu-Teamwork/0.4.0',
       ...(cfg.headers || {})
     };
     if (cfg.secret) {

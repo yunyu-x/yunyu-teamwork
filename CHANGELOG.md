@@ -4,6 +4,69 @@
 
 ---
 
+## [0.4.0] - 2026-11-21
+
+### 项目世界模型（World Model）+ 活文档 Wiki 档案 + 全仓自动审计 + 全面安全加固与前端模块化
+- **项目世界模型（`src/core/world-model.mjs`）**：
+  - 零外部依赖构建代码仓库实时结构与运行态心智模型：上下文感知 JS/ESM 词法扫描提取模块导出、相对依赖图、高扇入核心枢纽（Hubs）、所有权角色映射、DFS 循环依赖检测与仓库健康度评分（`0-100`）。
+  - **变更爆炸半径模拟器（`simulateChangeImpact`）**：修改源码前基于反向依赖图 BFS 预测直接/传递上游模块、关联回归测试、需联动责任人及核心工程不变量警告；支持自动向 LLM 驱动注入成员专属世界模型上下文简报（`getAgentBriefing`）。
+- **项目活文档 Wiki 档案（`src/core/wiki.mjs`）**：
+  - 基于 `events.jsonl` 实现追加式不可变版本追踪（`wiki_upsert`），支持跨重启无损重放、全文与分类检索、保留词/Windows 设备名防护及 Markdown 目录导出（`exportToDir`，自动生成 `README.md` 索引）。
+  - 一键从世界模型、共享知识库与审计报告自动合成多页活文档（项目总览、架构拓扑 Mermaid 图、模块导出清单、工程门禁、决策避坑档案及各模块域深潜页），内容未变更时保持版本幂等（`skipIfUnchanged`）。
+- **全仓多视角自动审计引擎与 CLI（`src/core/auditor.mjs`, `bin/yunyu.mjs`）**：
+  - 自动检测零外部运行时依赖铁律、硬编码敏感密钥（GitHub/GitLab/OpenAI/AWS/PEM）、危险动态执行（含模板字面量 `${eval(...)}`）、不安全 Shell 拼接、循环依赖、所有权冲突、超大文件与全仓版本号一致性；支持 `createIssues: true` 一键将 P0/P1 发现转为 Qoder Issue。
+  - 新增 CLI 子命令 `yunyu audit [--dir <path>] [--json]` 与 `yunyu wiki [--dir <path>] [--out docs/wiki]`，并纳入 `npm run verify` 与 GitHub Actions 跨平台（Linux/Windows/macOS）CI 门禁。
+- **Web UI 第 8 视图「世界模型 & Wiki」与前端模块化拆分（`web/world-wiki.js`, `web/lib/`, `web/views/`）**：
+  - 新增交互式模块域 SVG 依赖拓扑图、点击式爆炸半径模拟器、一键全仓审计面板与分栏式 Wiki 活文档浏览器/在线修订编辑器。
+  - 将原 2175 行 `web/app.js` 拆分为 `web/lib/state.js` + `web/views/{board,kanban,knowledge,members,gitlab,contract}.js` + `web/world-wiki.js` + 精简壳层 `web/app.js`，全仓审计得分达到 **100/100（P0=0 / P1=0 / P2=0）**。
+- **多 Agent 联合深度安全与架构审计修复**：
+  - 安全加固：收敛 CORS 仅允许本机回环/显式白名单、新增可选 `YUNYU_API_TOKEN` Bearer 鉴权、阻断 `sanitizeId("..")` 路径逃逸、修复 `OwnershipGuard` `..` 折叠/大小写/`role==='qa'` 与符号链接逃逸、加固 `CliAgentDriver` Windows 进程树清理与 `EPIPE` 防护、限制只读角色 `run_command`/白名单化 `run_verification`、加固 `ResearchEngine` IPv6 `[::1]`/DNS/重定向 SSRF 与流式字节上限、修复 `KnowledgeVault` `javascript:` 存储型 XSS、强化钉钉/Slack 验签防重放与 IM 渠道类型隔离、限制 `tokenEnv` 白名单及全路径响应密钥脱敏。
+  - 架构修复：`TaskTracker` 全量支持 `ISS-N` 键操作、`BudgetGovernor` 补齐独立费用 80% 预警、`WorktreeManager` 使用 `-c core.quotePath=false -uall` 审计未追踪子目录与中文路径并在合并前防丢未提交改动、前端支持作用域 SSE 与防表单覆写保护。
+
+---
+
+## [0.3.0] - 2026-11-21
+
+### Qoder-CN Issue 驱动模式 + 信息搜集与整合 Agent + 开源多 Agent 治理补短板
+- **Qoder-CN 风格 Issue 管理中心（`src/core/tasks.mjs`, `web/`）**：
+  - 升级为 6 态 Issue 生命周期：**待规划（`backlog`）→ 待开始（`ready`）→ 进行中（`in_progress`）→ 待验收（`review`）→ 已完成（`done`）→ 已取消（`cancelled`）**，自动分配递增编号 `ISS-1`、`ISS-2`...（向下兼容旧状态别名）。
+  - 新增 **Spec-Driven 规划与验收闭环**：每个 Issue 支持 Markdown Spec 规格、冻结状态（`draft` / `approved`）、可勾选验收清单（`acceptanceCriteria`）、一键批准 Spec、启动执行、**验收通过** 与 **打回返工（附意见自动 `@assignee`）**。
+  - Web UI 升级为 Qoder 风格顶部控制条（`全部 / 我的`、6 态快速筛选、实时 `搜索 Issue`、排序、`仅看就绪(Ready)`、`+ 邀请`、每列行内 `+` 快速建单）及右侧 **Issue 详情滑出抽屉**。
+- **Beads 风格 DAG 依赖图与 TTL 认领租约（`src/core/tasks.mjs`, `src/mcp/server.mjs`）**：
+  - 支持 `dependsOn` / `parentId` 子 Issue 关系与 DFS 循环依赖检测；新增 `GET /api/swarms/:id/tasks/ready` 与 MCP `issue_ready` 就绪队列；新增原子 TTL Claim Lease（`/claim`、`/release`、`issue_claim`）防多 Agent 重复认领。
+- **Vibe Kanban 风格在线 Git Diff 审查（`web/app.js`, `web/styles.css`）**：
+  - 在 Issue 详情抽屉内嵌语法着色 Unified Diff 预览器，直接对照验收清单审查分支代码差异并执行验收通过或打回返工。
+- **Paperclip 风格预算与成本治理（`src/core/budget.mjs`, `src/core/orchestrator.mjs`）**：
+  - 支持配置蜂群级与成员级 `maxTokens` / `maxTurns` / `maxCostUsd` 与 80% 预警、100% 自动熔断；新增 `GET/PUT /api/swarms/:id/budget`、MCP `budget_status` 与 UI 实时预算进度条。
+- **信息搜集与整合 Agent + 共享知识库（`src/core/research.mjs`, `src/core/knowledge.mjs`, `src/drivers/research-synthesizer.mjs`）**：
+  - 新增 `researcher` 只读角色（受 `OwnershipGuard` 源码禁改保护）、`research-synthesizer` 驱动、一键预设 `info-synthesizer` 与全链路模板 `research-to-delivery`。
+  - 零依赖跨源采集仓库源码/文档 + HTTP 网页 HTML 正文提取 + 蜂群历史上下文，去重整合出带 `[1][2]` 引用编号的中文调研简报并持久化至追加式 **共享知识库（`KnowledgeVault`）**；Web UI 新增「情报知识库」视图支持一键发起调研与全文检索。
+- **行业标杆对标白皮书**：新增 [docs/BENCHMARK_AND_INTEGRATION.md](docs/BENCHMARK_AND_INTEGRATION.md)。
+
+---
+
+## [0.2.0] - 2026-11-21
+
+### 核心生产能力与生态扩展（Production Recovery, Streaming CLI, Kanban, Git Agents & Digital Twins）
+- **重启持久化自动恢复（`src/core/worktree.mjs`, `src/core/orchestrator.mjs`）**：
+  - `SwarmInstance._saveMeta()` 完整持久化 `worktreeRoot`、`worktrees` 映射、可序列化 `driverConfig`、`sessionId` 与 GitLab 连接元数据（默认仅记录 `tokenEnv` 不落盘明文 Token，显式 `persistToken: true` 时可选本地保存）。
+  - `WorktreeManager.rehydrate()` 启动时扫描 `git worktree list --porcelain` 自动重建内存映射；当 `share` 目录被外部清理但 Git 分支仍存时支持自动修复挂接（`autoRepair`）。
+  - `SwarmInstance.rehydrate()` 自动重建 `GitLabClient` 与 `GitLabSyncService` 双向同步连接，并新增 `POST /api/swarms/:id/gitlab/reconnect` 动态重连接口。
+- **CLI Agent 实时日志流与会话上下文复用（`src/drivers/cli-agent.mjs`, `src/core/storage.mjs`）**：
+  - 升级 `claude-code`（`-p --output-format stream-json --verbose` + `--resume <sessionId>`）与 `codex-cli`（`exec --json -` + `exec resume --json <thread_id> -`，默认通过 stdin 传参规避 Windows 转义限制，验证/复核角色自动启用 `--sandbox read-only`）。
+  - 逐行解析 JSONL 流并通过 SSE `agent_log` 实时推送至 Web 终端日志面板，独立归档至 `agent-logs.jsonl`；会话失效自动降级新会话单次重试；新增 `GET /api/swarms/:id/logs` 与 `POST /api/swarms/:id/members/:name/session/reset`。
+  - 新增本机真实 Claude Code + Codex CLI 协同脚本 `examples/cli-agent-collab.mjs`（`npm run demo:cli`）。
+- **Web UI 任务与交付物看板（Kanban）及 GitLab 评论闭环（`src/core/tasks.mjs`, `web/`）**：
+  - 新增追加式持久化 `TaskTracker`（`backlog` / `in_progress` / `review` / `qa` / `blocked` / `done` 6 列），与留言板 `#seq` 交付凭证、Commit SHA 及 GitLab Issue/MR 自动联动。
+  - 新增 Web UI 第 6 视图「任务看板（Kanban）」，以及 GitLab 面板 Issue 评论区实时预览与直接回复（支持一键同步镜像至蜂群留言板）。
+  - 优化前端单飞合并刷新队列与 `WorktreeManager.listWorkspaces()` 同目录缓存，规避浏览器 HTTP/1.1 6 并发连接阻塞。
+- **Git 研发工作流 Agents 套件 + 个人数字分身与多渠道 IM/Bot 通信网桥（`src/channels/`, `src/core/twins-store.mjs`, `src/drivers/digital-twin.mjs`）**：
+  - 新增角色 `reviewer`（纳入只读源码禁改硬不变量）、`committer` 与 `digital_twin`；扩展受控 Git 工具套件（`git_status` / `git_diff` / `git_log` / `git_push` 受保护分支拦截与禁强推 / `git_review_branch` / `run_verification`）及 `git-dev-lifecycle` 模板与 `AGENT_PRESETS` 一键预设库。
+  - 新增零依赖 6 渠道 IM / 机器人通信适配层（**飞书/Lark、企业微信、钉钉、Telegram、Slack/Discord、通用 HMAC-SHA256 Webhook**）与双向 `ChannelBridge`。
+  - 新增 `DigitalTwinDriver`（支持 `hybrid` 混合审批托管、`auto_reply` 与 `relay_human`）及 `.yunyu/twins.json` 个人数字分身档案库（跨蜂群一键挂载），并在 Web UI 提供分身配置、入站回调地址预览与 IM 测试推送能力。
+
+---
+
 ## [0.1.0] - 2026-11-21
 
 ### 首发核心能力（Initial Open-Source Release）

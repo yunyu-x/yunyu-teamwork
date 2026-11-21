@@ -30,6 +30,18 @@
       <span id="tab-label-board">看板</span>
       <span class="tab-count" id="count-board">0</span>
     </button>
+    <button type="button" class="tab-btn" data-tab="kanban" role="tab">
+      <span id="tab-label-kanban">Issue 看板</span>
+      <span class="tab-count" id="count-kanban">0</span>
+    </button>
+    <button type="button" class="tab-btn" data-tab="knowledge" role="tab">
+      <span id="tab-label-knowledge">情报知识库</span>
+      <span class="tab-count" id="count-knowledge">0</span>
+    </button>
+    <button type="button" class="tab-btn" data-tab="world" role="tab">
+      <span id="tab-label-world">世界模型 &amp; Wiki</span>
+      <span class="tab-count" id="count-wiki">0</span>
+    </button>
     <button type="button" class="tab-btn" data-tab="graph" role="tab">
       <span id="tab-label-graph">协作图谱</span>
     </button>
@@ -57,7 +69,22 @@
       <div class="msg-list" id="board-messages"></div>
     </section>
 
-    <!-- 2. Graph + Timeline Replay View -->
+    <!-- 2. Qoder-style Issues & Deliverables Kanban View -->
+    <section id="panel-kanban" class="view-panel">
+      <div id="kanban-view-body"></div>
+    </section>
+
+    <!-- 2.5. Shared Research & Knowledge Vault View -->
+    <section id="panel-knowledge" class="view-panel">
+      <div id="knowledge-view-body"></div>
+    </section>
+
+    <!-- 2.8. Project World Model & Living Wiki Archive View -->
+    <section id="panel-world" class="view-panel">
+      <div id="world-view-body"></div>
+    </section>
+
+    <!-- 3. Graph + Timeline Replay View -->
     <section id="panel-graph" class="view-panel">
       <div class="graph-controls">
         <div class="graph-scrubber-row">
@@ -94,17 +121,34 @@
       <div id="graph-detail"></div>
     </section>
 
-    <!-- 3. Members View -->
+    <!-- 4. Members + Personal Digital Twins + Live CLI Logs View -->
     <section id="panel-members" class="view-panel">
-      <div class="card-grid" id="members-grid"></div>
+      <div class="section-stack">
+        <div id="saved-twins-bar"></div>
+        <div class="card-grid" id="members-grid"></div>
+        <div class="panel-card" id="agent-logs-panel">
+          <h3>
+            <span id="agent-logs-title">实时 CLI / Agent 执行日志流</span>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <select id="logs-member-filter" class="composer-select" aria-label="筛选成员日志">
+                <option value="">全部成员</option>
+              </select>
+              <button type="button" class="btn small" id="btn-refresh-logs">刷新日志</button>
+            </div>
+          </h3>
+          <div class="log-console" id="agent-logs-stream">
+            <div class="empty-state" style="padding:12px;">等待 CLI / Agent 产生实时日志输出...</div>
+          </div>
+        </div>
+      </div>
     </section>
 
-    <!-- 4. GitLab Project Management View -->
+    <!-- 5. GitLab Project Management View -->
     <section id="panel-gitlab" class="view-panel">
       <div id="gitlab-view-body"></div>
     </section>
 
-    <!-- 5. Ownership Contract & Worktrees View -->
+    <!-- 6. Ownership Contract & Worktrees View -->
     <section id="panel-contract" class="view-panel">
       <div id="contract-view-body"></div>
     </section>
@@ -122,23 +166,30 @@
     </div>
   </footer>
 
-  <!-- Modal: Add Heterogeneous Member -->
+  <!-- Modal: Add Heterogeneous Member / Git Agent / Personal Digital Twin -->
   <div class="modal-backdrop" id="modal-member">
     <div class="modal-card">
-      <h3 id="modal-member-title">招募异构 Agent 加入蜂群</h3>
+      <h3 id="modal-member-title">招募异构 Agent / 个人数字分身</h3>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">一键套用工程角色或个人分身预设：</div>
+      <div class="preset-bar" id="member-preset-bar"></div>
+
       <form id="form-add-member">
         <div class="form-field">
-          <label for="m-name">成员名称（小写，如 reviewer / mobile-dev）</label>
-          <input id="m-name" required pattern="[a-z][a-z0-9_-]*" placeholder="security-qa" />
+          <label for="m-name">成员名称（小写，如 code-reviewer / zhang-twin）</label>
+          <input id="m-name" required pattern="[a-z][a-z0-9_-]*" placeholder="code-reviewer" />
         </div>
         <div class="two-col" style="gap:10px;">
           <div class="form-field">
             <label for="m-role">职责角色</label>
             <select id="m-role">
-              <option value="author">研发作者 (author)</option>
-              <option value="architect">架构师 (architect)</option>
-              <option value="verifier">独立 QA (verifier · 禁改 src/)</option>
+              <option value="author">Git 开发作者 (author)</option>
+              <option value="committer">Git 提交/推送官 (committer)</option>
+              <option value="reviewer">Git 代码复核官 (reviewer · 禁改 src/)</option>
+              <option value="verifier">独立 QA 验证官 (verifier · 禁改 src/)</option>
+              <option value="researcher">信息搜集与整合官 (researcher · 禁改 src/)</option>
+              <option value="architect">系统架构师 (architect)</option>
               <option value="release">发布官 (release)</option>
+              <option value="digital_twin">个人数字分身 (digital_twin · 支持 IM 接入)</option>
               <option value="human">人类工程师 (human)</option>
             </select>
           </div>
@@ -146,13 +197,81 @@
             <label for="m-driver">异构接入驱动</label>
             <select id="m-driver">
               <option value="simulated">内置演练驱动 (simulated)</option>
+              <option value="cli-agent">CLI Agent (Claude Code / Codex / Gemini)</option>
               <option value="openai-compatible">OpenAI / DeepSeek / Ollama</option>
-              <option value="cli-agent">CLI Agent (Claude / Codex / Gemini)</option>
+              <option value="research-synthesizer">信息搜集整合驱动 (research-synthesizer)</option>
+              <option value="digital-twin">个人数字分身驱动 (digital-twin)</option>
               <option value="webhook">HTTP Webhook (Dify / LangGraph)</option>
               <option value="human">人类人工接入 (human)</option>
             </select>
           </div>
         </div>
+
+        <div class="form-field hidden" id="cli-preset-wrap">
+          <label for="m-cli-preset">本机 CLI 预设（支持实时日志流与 --resume 会话复用）</label>
+          <select id="m-cli-preset">
+            <option value="claude-code">Claude Code (claude -p --output-format stream-json --resume)</option>
+            <option value="codex-cli">OpenAI Codex CLI (codex exec --json / exec resume)</option>
+            <option value="gemini-cli">Gemini CLI (gemini -p)</option>
+          </select>
+        </div>
+
+        <!-- Personal Digital Twin & IM Bridge Config -->
+        <div class="twin-config-box hidden" id="twin-fields-wrap">
+          <h4>🤖 个人数字分身 &amp; IM / 机器人通信配置</h4>
+          <div class="two-col" style="gap:8px;">
+            <div class="form-field">
+              <label for="twin-owner">归属人姓名</label>
+              <input id="twin-owner" placeholder="例如：张工 / 林产品" />
+            </div>
+            <div class="form-field">
+              <label for="twin-autonomy">托管策略</label>
+              <select id="twin-autonomy">
+                <option value="hybrid">hybrid（混合托管：常规自动代答 + 审批转 IM）</option>
+                <option value="auto_reply">auto_reply（全自动代答并抄送 IM）</option>
+                <option value="relay_human">relay_human（纯 IM 转发等待本人回复）</option>
+              </select>
+            </div>
+          </div>
+          <div class="two-col" style="gap:8px;">
+            <div class="form-field">
+              <label for="twin-backend">底层推理引擎</label>
+              <select id="twin-backend">
+                <option value="builtin">内置离线分身引擎 (零依赖)</option>
+                <option value="openai-compatible">OpenAI / DeepSeek / Ollama</option>
+                <option value="cli-agent">本机 Claude / Codex CLI</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label for="twin-im-type">绑定 IM / 机器人通信通道</label>
+              <select id="twin-im-type">
+                <option value="">暂不绑定外部 IM（仅站内）</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-field">
+            <label for="twin-persona">个人风格与决策原则（Persona）</label>
+            <input id="twin-persona" placeholder="例如：重视接口向后兼容与零回归，回复简洁直接" />
+          </div>
+          <div class="form-field">
+            <label for="twin-knowledge">个人知识库 / 常用偏好备注（可选）</label>
+            <input id="twin-knowledge" placeholder="例如：周五下午不做生产发布，优先合并文档与测试 PR" />
+          </div>
+          <div class="form-field">
+            <label for="twin-keywords">触发人工 IM 请示关键词（逗号分隔）</label>
+            <input id="twin-keywords" value="合并, 发布, 上线, 审批, 生产, 删除, 预算, 确认" />
+          </div>
+          <div id="twin-im-dynamic-fields"></div>
+          <div class="form-field hidden" id="twin-inbound-preview-wrap">
+            <label>入站回调 Webhook 地址（粘贴至飞书/钉钉/Telegram/自建机器人后台）</label>
+            <div class="inbound-url-box" id="twin-inbound-url"></div>
+          </div>
+          <label class="graph-toggle" style="font-size:12px;">
+            <input type="checkbox" id="twin-save-library" checked />
+            <span>同时保存到「我的个人数字分身库」（跨蜂群一键复用）</span>
+          </label>
+        </div>
+
         <div class="two-col" style="gap:10px;">
           <div class="form-field">
             <label for="m-model">模型 / 标识</label>
@@ -200,6 +319,8 @@
           <label for="s-template">初始团队模板</label>
           <select id="s-template">
             <option value="gitlab-fullstack">GitLab 全栈研发协同蜂群（6 角色）</option>
+            <option value="research-to-delivery">全链路情报调研 → Spec 规划 → 并发研发 → 验收团队</option>
+            <option value="git-dev-lifecycle">Git 标准研发交付蜂群（开发 → 提交 → 复核 → 验证）</option>
             <option value="heterogeneous-cli">异构 CLI 混编团队（Claude + Codex + Gemini）</option>
             <option value="gitlab-code-review">GitLab MR 多视角联合审查团队</option>
             <option value="">空白蜂群（手动招募）</option>
@@ -211,6 +332,11 @@
         </div>
       </form>
     </div>
+  </div>
+
+  <!-- Slide-Over Drawer: Qoder-style Issue Detail (Spec / Checklist / DAG / Live Diff / Accept-Reject) -->
+  <div class="drawer-backdrop" id="issue-drawer" aria-label="Issue 详情抽屉">
+    <div class="drawer-card" id="issue-drawer-body"></div>
   </div>
 
   <script type="module" src="/app.js"></script>

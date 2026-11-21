@@ -180,6 +180,146 @@ async function run() {
     await session.ev(`document.querySelector('[data-toggle-trans]').click()`);
     await sleep(150);
 
+    // Verify Qoder-style 6-column Issue Kanban view + Inline '+' + Issue Detail Slide-Over Drawer
+    await session.ev(`document.querySelector('[data-tab="kanban"]').click()`);
+    await sleep(300);
+    const kanbanBefore = await session.ev(`(() => ({
+      cols: document.querySelectorAll('.kanban-col').length,
+      colAddBtns: document.querySelectorAll('[data-col-quick-add]').length,
+      hasScopeTabs: Boolean(document.querySelector('[data-issue-scope="all"]') && document.querySelector('[data-issue-scope="mine"]')),
+      cards: document.querySelectorAll('.kanban-card').length,
+      overflowX: document.documentElement.scrollWidth > window.innerWidth
+    }))()`);
+    assert.equal(kanbanBefore.cols, 6);
+    assert.equal(kanbanBefore.colAddBtns, 6);
+    assert.equal(kanbanBefore.hasScopeTabs, true);
+    assert.ok(kanbanBefore.cards >= 3, `Expected >= 3 Issue cards, got ${kanbanBefore.cards}`);
+    assert.equal(kanbanBefore.overflowX, false, 'Desktop Issue Kanban must have zero horizontal overflow');
+
+    // Create a new Issue via inline '+' on 待规划 column
+    await session.ev(`(() => {
+      document.querySelector('[data-col-quick-add="backlog"]').click();
+      document.querySelector('#kb-title').value = '补充限流器压测基准报告';
+      document.querySelector('#kb-priority').value = 'P0';
+      document.querySelector('#kanban-create-form button[type="submit"]').click();
+    })()`);
+    for (let i = 0; i < 20; i++) {
+      const cnt = await session.ev(`document.querySelectorAll('.kanban-card').length`);
+      if (cnt >= kanbanBefore.cards + 1) break;
+      await sleep(120);
+    }
+    const kanbanAfterCreate = await session.ev(`document.querySelectorAll('.kanban-card').length`);
+    assert.equal(kanbanAfterCreate, kanbanBefore.cards + 1);
+    report.desktop.kanban = { cols: kanbanBefore.cols, cards: kanbanAfterCreate };
+    report.screenshots.push(path.basename(await session.screenshot('ui_kanban_zh.png')));
+
+    // Open Issue Detail Slide-Over Drawer for a review/planning Issue & verify Spec + Checklist + Live Diff
+    await session.ev(`(() => {
+      const reviewCard = document.querySelector('.kanban-col[data-col="review"] .kanban-card') || document.querySelector('.kanban-card');
+      reviewCard.click();
+    })()`);
+    await sleep(400);
+    const drawerCheck = await session.ev(`(() => ({
+      isOpen: document.querySelector('#issue-drawer')?.classList.contains('open') || false,
+      hasSpec: Boolean(document.querySelector('#drawer-spec-input')),
+      hasCriteria: document.querySelectorAll('[data-toggle-criterion]').length >= 1,
+      hasDiffBox: Boolean(document.querySelector('.diff-box')),
+      hasAcceptBtn: Boolean(document.querySelector('[data-drawer-action="accept"]'))
+    }))()`);
+    assert.equal(drawerCheck.isOpen, true);
+    assert.equal(drawerCheck.hasSpec, true);
+    assert.equal(drawerCheck.hasCriteria, true);
+    assert.equal(drawerCheck.hasDiffBox, true);
+    assert.equal(drawerCheck.hasAcceptBtn, true);
+    report.desktop.issueDrawer = drawerCheck;
+    report.screenshots.push(path.basename(await session.screenshot('ui_issue_drawer_zh.png')));
+    await session.ev(`document.querySelector('#btn-close-drawer').click()`);
+    await sleep(150);
+
+    // Verify Shared Research & Knowledge Vault tab + one-click Research Collection
+    await session.ev(`document.querySelector('[data-tab="knowledge"]').click()`);
+    await sleep(300);
+    const kbBefore = await session.ev(`document.querySelectorAll('#knowledge-view-body article.panel-card').length`);
+    assert.ok(kbBefore >= 1, 'Expected seeded Research Brief in Knowledge Vault');
+    await session.ev(`(() => {
+      document.querySelector('#res-topic').value = 'TokenBucketLimiter 限流契约调研';
+      document.querySelector('#research-collect-form button[type="submit"]').click();
+    })()`);
+    for (let i = 0; i < 25; i++) {
+      const n = await session.ev(`document.querySelectorAll('#knowledge-view-body article.panel-card').length`);
+      if (n >= kbBefore + 1) break;
+      await sleep(150);
+    }
+    const kbAfter = await session.ev(`document.querySelectorAll('#knowledge-view-body article.panel-card').length`);
+    assert.ok(kbAfter >= kbBefore + 1, `Expected new synthesized research card, got ${kbAfter}`);
+    const kbOverflowX = await session.ev(`document.documentElement.scrollWidth > window.innerWidth`);
+    assert.equal(kbOverflowX, false, 'Desktop Knowledge Vault must have zero horizontal overflow');
+    report.desktop.knowledge = { entries: kbAfter };
+    report.screenshots.push(path.basename(await session.screenshot('ui_knowledge_zh.png')));
+
+    // Verify Project World Model & Living Wiki Archive tab (Topology SVG + Impact Simulator + Audit + Wiki Editor)
+    await session.ev(`document.querySelector('[data-tab="world"]').click()`);
+    for (let i = 0; i < 25; i++) {
+      const ready = await session.ev(
+        `document.querySelectorAll('.wiki-nav-item').length >= 4 && Boolean(document.querySelector('.world-svg'))`
+      );
+      if (ready) break;
+      await sleep(150);
+    }
+    const worldBefore = await session.ev(`(() => ({
+      kpiCount: document.querySelectorAll('.world-kpi').length,
+      hasSvg: Boolean(document.querySelector('.world-svg')),
+      wikiCount: document.querySelectorAll('.wiki-nav-item').length,
+      overflowX: document.documentElement.scrollWidth > window.innerWidth
+    }))()`);
+    assert.equal(worldBefore.kpiCount, 4);
+    assert.equal(worldBefore.hasSvg, true);
+    assert.ok(worldBefore.wikiCount >= 4, `Expected >= 4 auto-generated wiki pages, got ${worldBefore.wikiCount}`);
+    assert.equal(worldBefore.overflowX, false, 'Desktop World & Wiki tab must have zero horizontal overflow');
+
+    // Run Change Blast-Radius Impact Simulator & Live Audit
+    await session.ev(`(() => {
+      const hub = document.querySelector('[data-pick-impact-file]');
+      if (hub) hub.click();
+      else document.querySelector('#btn-run-impact').click();
+    })()`);
+    for (let i = 0; i < 20; i++) {
+      if (await session.ev(`Boolean(document.querySelector('.impact-result'))`)) break;
+      await sleep(120);
+    }
+    assert.equal(await session.ev(`Boolean(document.querySelector('.impact-result'))`), true);
+
+    await session.ev(`document.querySelector('#btn-run-audit').click()`);
+    for (let i = 0; i < 20; i++) {
+      if (await session.ev(`Boolean(document.querySelector('.audit-summary-row'))`)) break;
+      await sleep(120);
+    }
+    assert.equal(await session.ev(`Boolean(document.querySelector('.audit-summary-row'))`), true);
+
+    // Create a custom Wiki page via inline editor
+    await session.ev(`document.querySelector('#btn-wiki-new').click()`);
+    await sleep(150);
+    await session.ev(`(() => {
+      document.querySelector('#wiki-edit-slug').value = 'release-checklist';
+      document.querySelector('#wiki-edit-title').value = '发布前核对清单';
+      document.querySelector('#wiki-edit-summary').value = '新增发版检查项';
+      document.querySelector('#wiki-edit-content').value = '# 发布前核对清单\\n- 通过全量单测与无头 Chrome UI 验收\\n- 零外部依赖审计绿灯';
+      document.querySelector('#form-wiki-edit button[type="submit"]').click();
+    })()`);
+    for (let i = 0; i < 20; i++) {
+      const n = await session.ev(`document.querySelectorAll('.wiki-nav-item').length`);
+      if (n >= worldBefore.wikiCount + 1) break;
+      await sleep(120);
+    }
+    const wikiAfterCreate = await session.ev(`document.querySelectorAll('.wiki-nav-item').length`);
+    assert.equal(wikiAfterCreate, worldBefore.wikiCount + 1);
+    report.desktop.worldWiki = {
+      wikiPages: wikiAfterCreate,
+      impactSimulated: true,
+      auditExecuted: true
+    };
+    report.screenshots.push(path.basename(await session.screenshot('ui_world_wiki_zh.png')));
+
     // Switch to Graph tab & verify SVG nodes, edges, and timeline scrubber
     await session.ev(`document.querySelector('[data-tab="graph"]').click()`);
     await sleep(350);
@@ -201,20 +341,79 @@ async function run() {
     const prevLabel = await session.ev(`document.querySelector('#graph-step-label')?.textContent`);
     assert.notEqual(prevLabel, graphCheck.stepLabel);
 
-    // Switch to Members tab
+    // Switch to Members tab & recruit a Personal Digital Twin with IM channel via one-click preset
     await session.ev(`document.querySelector('[data-tab="members"]').click()`);
     await sleep(250);
-    const membersCount = await session.ev(`document.querySelectorAll('#members-grid .panel-card').length`);
-    assert.ok(membersCount >= 6);
-    report.desktop.membersCount = membersCount;
+    const membersCountBefore = await session.ev(`document.querySelectorAll('#members-grid .panel-card').length`);
+    assert.ok(membersCountBefore >= 6);
 
-    // Switch to GitLab tab
+    await session.ev(`document.querySelector('#btn-add-member').click()`);
+    await sleep(200);
+    await session.ev(`(() => {
+      document.querySelector('[data-apply-preset="personal-twin"]').click();
+      document.querySelector('#m-name').value = 'lin-twin';
+      document.querySelector('#twin-owner').value = '林总';
+      document.querySelector('#twin-im-type').value = 'feishu';
+      document.querySelector('#twin-im-type').dispatchEvent(new Event('change'));
+    })()`);
+    await sleep(200);
+    const twinModalCheck = await session.ev(`(() => ({
+      twinWrapVisible: !document.querySelector('#twin-fields-wrap').classList.contains('hidden'),
+      inboundUrl: document.querySelector('#twin-inbound-url')?.textContent || '',
+      hasWebhookInput: Boolean(document.querySelector('[data-im-field="webhookUrl"]'))
+    }))()`);
+    assert.equal(twinModalCheck.twinWrapVisible, true);
+    assert.ok(twinModalCheck.inboundUrl.includes('/channels/inbound/feishu/lin-twin'));
+    assert.equal(twinModalCheck.hasWebhookInput, true);
+
+    await session.ev(`document.querySelector('#form-add-member button[type="submit"]').click()`);
+    for (let i = 0; i < 30; i++) {
+      const cnt = await session.ev(`document.querySelectorAll('#members-grid .panel-card').length`);
+      if (cnt >= membersCountBefore + 1) break;
+      await sleep(150);
+    }
+    const membersCount = await session.ev(`document.querySelectorAll('#members-grid .panel-card').length`);
+    assert.equal(membersCount, membersCountBefore + 1);
+    for (let i = 0; i < 20; i++) {
+      const ok = await session.ev(`document.querySelector('#saved-twins-bar')?.textContent?.includes('lin-twin') || false`);
+      if (ok) break;
+      await sleep(100);
+    }
+    const hasSavedTwinsBar = await session.ev(`document.querySelector('#saved-twins-bar')?.textContent?.includes('lin-twin') || false`);
+    assert.equal(hasSavedTwinsBar, true, 'Expected newly created twin persisted in Saved Twins bar');
+    report.desktop.membersCount = membersCount;
+    report.desktop.digitalTwinRecruited = true;
+
+    // Switch to GitLab tab & test Issue Comments Preview + Inline Reply
     await session.ev(`document.querySelector('[data-tab="gitlab"]').click()`);
     await sleep(250);
     const gitlabText = await session.ev(`document.querySelector('#gitlab-view-body')?.textContent || ''`);
     assert.ok(gitlabText.includes('yunyu/order-service'));
     assert.ok(gitlabText.includes('merged'));
+
+    // Expand Issue #1 comments and post an inline reply
+    await session.ev(`document.querySelector('[data-toggle-issue-notes="1"]').click()`);
+    for (let i = 0; i < 20; i++) {
+      const n = await session.ev(`document.querySelectorAll('#issue-notes-drawer-1 .note-item').length`);
+      if (n >= 1) break;
+      await sleep(150);
+    }
+    const notesBefore = await session.ev(`document.querySelectorAll('#issue-notes-drawer-1 .note-item').length`);
+    assert.ok(notesBefore >= 1, `Expected synced comments on Issue #1, got ${notesBefore}`);
+    await session.ev(`(() => {
+      const form = document.querySelector('[data-issue-note-form="1"]');
+      form.querySelector('[name="noteBody"]').value = '验收意见：前端卡片与限流器指标清晰，同意归档。';
+      form.querySelector('button[type="submit"]').click();
+    })()`);
+    for (let i = 0; i < 25; i++) {
+      const txt = await session.ev(`document.querySelector('#issue-notes-drawer-1')?.textContent || ''`);
+      if (txt.includes('前端卡片与限流器指标清晰')) break;
+      await sleep(150);
+    }
+    const notesAfterText = await session.ev(`document.querySelector('#issue-notes-drawer-1')?.textContent || ''`);
+    assert.ok(notesAfterText.includes('前端卡片与限流器指标清晰'));
     report.desktop.gitlabConnected = true;
+    report.desktop.gitlabIssueNotesVerified = true;
     report.screenshots.push(path.basename(await session.screenshot('ui_gitlab_panel.png')));
 
     // Switch to Contract & Worktrees tab & test live QA ownership rejection
@@ -243,6 +442,23 @@ async function run() {
     }))()`);
     assert.equal(mobileCheck.overflowX, false, 'Mobile 390x844 must have zero horizontal overflow');
     assert.ok(mobileCheck.cardsVisible >= 10);
+
+    // Also audit Kanban & Knowledge tabs on Mobile 390x844 for zero horizontal overflow
+    await session.ev(`document.querySelector('[data-tab="kanban"]').click()`);
+    await sleep(250);
+    const mobileKanbanOverflow = await session.ev(`document.documentElement.scrollWidth > window.innerWidth`);
+    assert.equal(mobileKanbanOverflow, false, 'Mobile 390x844 Kanban must have zero horizontal overflow');
+    await session.ev(`document.querySelector('[data-tab="knowledge"]').click()`);
+    await sleep(250);
+    const mobileKnowledgeOverflow = await session.ev(`document.documentElement.scrollWidth > window.innerWidth`);
+    assert.equal(mobileKnowledgeOverflow, false, 'Mobile 390x844 Knowledge Vault must have zero horizontal overflow');
+    await session.ev(`document.querySelector('[data-tab="world"]').click()`);
+    await sleep(250);
+    const mobileWorldOverflow = await session.ev(`document.documentElement.scrollWidth > window.innerWidth`);
+    assert.equal(mobileWorldOverflow, false, 'Mobile 390x844 World & Wiki must have zero horizontal overflow');
+    mobileCheck.kanbanOverflowX = mobileKanbanOverflow;
+    mobileCheck.knowledgeOverflowX = mobileKnowledgeOverflow;
+    mobileCheck.worldOverflowX = mobileWorldOverflow;
     report.mobile = mobileCheck;
 
     assert.equal(session.runtimeErrors.length, 0, `Runtime errors: ${JSON.stringify(session.runtimeErrors)}`);

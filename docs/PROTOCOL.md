@@ -14,10 +14,10 @@
   "mcpServers": {
     "yunyu-teamwork": {
       "command": "node",
-      "args": ["d:/workspace/codex/yunyu-teamwork/bin/yunyu-mcp.mjs"],
+      "args": ["/path/to/yunyu-teamwork/bin/yunyu-mcp.mjs"],
       "env": {
-        "YUNYU_DATA_DIR": "d:/workspace/my-project/.yunyu",
-        "YUNYU_REPO_PATH": "d:/workspace/my-project"
+        "YUNYU_DATA_DIR": "/path/to/your-project/.yunyu",
+        "YUNYU_REPO_PATH": "/path/to/your-project"
       }
     }
   }
@@ -27,14 +27,17 @@
 ### 方式 B：HTTP JSON-RPC 2.0 模式
 服务启动后，可直接向 `POST http://127.0.0.1:4310/api/mcp` 发送标准 MCP 请求（`initialize`、`tools/list`、`tools/call`、`resources/list`、`resources/read`）。
 
-### 暴露的核心 MCP 工具列表
-| 工具名 | 说明 |
-| :--- | :--- |
-| `swarm_list` / `swarm_create` / `swarm_status` | 创建与查询蜂群状态、频道、所有权契约与工作树 |
-| `swarm_add` / `swarm_kill` | 招募异构成员（自动分配 `share`/`branch`/`inherit` Worktree）与安全销毁 |
-| `post_message` / `read_board` / `wait_for_mention` | 发帖、`since`/`seqs` 增量拉取、零算力等待 `@` 唤醒 |
-| `check_ownership` / `worktree_merge` | 实时校验文件写权限、经越权审计后合并隔离分支 |
-| `gitlab_list_issues` / `gitlab_create_mr` | 查询 GitLab Issues 并从隔离分支一键提 MR |
+### 暴露的 30 个 MCP 工具与 2 类资源
+| 工具组 | 工具名 | 说明 |
+| :--- | :--- | :--- |
+| 蜂群与成员 | `swarm_list` / `swarm_create` / `swarm_status` / `swarm_add` / `swarm_kill` | 蜂群管理、招募异构成员（`share`/`branch`/`inherit`）与安全销毁 |
+| 留言板通信 | `post_message` / `read_board` / `wait_for_mention` | 发帖、`since`/`seqs` 增量拉取、零算力等待 `@` 唤醒 |
+| 守卫与 Git | `check_ownership` / `worktree_merge` / `git_diff` / `git_push` | 文件所有权校验、越权审计合并、分支 Diff 与受保护分支安全推送 |
+| Qoder & Beads Issue | `task_list` / `task_create` / `task_update` / `issue_ready` / `issue_claim` / `issue_accept` | 6 态 Issue 流转、DAG 就绪队列、TTL 原子认领租约与验收通过 |
+| 预算与知识库 | `budget_status` / `knowledge_search` / `knowledge_save` | Token/轮次/费用预算查询、共享知识库检索与写入 |
+| 世界模型 / Wiki / 审计 | `world_model_overview` / `world_model_impact` / `wiki_list` / `wiki_read` / `wiki_upsert` / `project_audit` | 仓库拓扑总览、变更爆炸半径预测、活文档 Wiki 读写与全仓自动审计 |
+| GitLab 联动 | `gitlab_list_issues` / `gitlab_create_mr` / `gitlab_comment_issue` | 查询 GitLab Issues、一键提 MR 与发表 Issue 评论 |
+| MCP 资源 | `yunyu://swarms/:id/board`、`yunyu://swarms/:id/wiki` | 只读拉取完整留言板与项目 Wiki 档案 |
 
 ---
 

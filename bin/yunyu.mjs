@@ -2,11 +2,16 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { DEFAULT_CONFIG } from '../src/core/constants.mjs';
+import { ProjectAuditor } from '../src/core/auditor.mjs';
+import { APP_VERSION, DEFAULT_CONFIG } from '../src/core/constants.mjs';
+import { ProjectWiki } from '../src/core/wiki.mjs';
+import { ProjectWorldModel } from '../src/core/world-model.mjs';
 import { isGitRepo } from '../src/core/worktree.mjs';
 import { runShowcaseDemo } from '../src/demo/showcase-scenario.mjs';
 import { GitLabClient, GitLabSyncService } from '../src/gitlab/index.mjs';
 import { YunyuServer } from '../src/server/app.mjs';
+
+const VERSION = APP_VERSION;
 
 function parseArgs(argv) {
   const args = { _: [] };
@@ -44,11 +49,14 @@ function loadDotEnv(dir = process.cwd()) {
 
 function printHelp() {
   console.log(`
-云驭协同（Yunyu Teamwork）v0.1.0 — 开源多 Agent 蜂群协同研发与 GitLab 项目管理平台
+云驭协同（Yunyu Teamwork）v${VERSION} — 开源多 Agent 蜂群协同研发、项目世界模型与活文档 Wiki 平台
 
 用法：
   yunyu serve [options]       启动 HTTP API + SSE + 中文 Web 协同看板 + MCP 网关
-  yunyu demo  [options]       一键启动离线全链路演示（真实 Git Worktree + 本地 GitLab 模拟 + 6 Agent 协同交付）
+  yunyu demo  [options]       一键启动离线全链路演示（真实 Git Worktree + 本地 GitLab 模拟 + 世界模型 & Wiki）
+  yunyu audit [--dir <path>]  执行全仓架构、安全与工程不变量自动审计（--json 输出结构化报告）
+  yunyu wiki  [--dir <path>] [--out <dir>]
+                              扫描仓库世界模型并导出活文档项目 Wiki 档案（默认输出至 docs/wiki）
   yunyu init  [--dir <path>]  在当前或目标 GitLab 仓库中初始化 CONTRACT.json 契约模板
   yunyu status [--url <url>]  查询运行中的云驭服务蜂群与成员状态
   yunyu post --swarm <id> --author <name> --text <msg> [--url <url>]
@@ -226,6 +234,55 @@ function cmdDoctor() {
   console.log(JSON.stringify(report, null, 2));
 }
 
+function cmdAudit(args) {
+  const targetDir = path.resolve(String(args.dir || args.repo || process.cwd()));
+  const report = ProjectAuditor.run({ repoPath: targetDir });
+  if (args.json) {
+    console.log(JSON.stringify(report, null, 2));
+  } else {
+    console.log(`\n🛡️  云驭协同全仓工程审计报告（${targetDir}）`);
+    console.log(
+      `   综合评分：${report.score}/100 · 世界模型健康度：${report.worldHealthScore}/100 · 结果：${
+        report.passed ? '✅ PASS' : '❌ FAIL'
+      }`
+    );
+    console.log(
+      `   扫描源码：${report.summary.scannedFiles} 个 · 发现：P0=${report.summary.p0} / P1=${report.summary.p1} / P2=${report.summary.p2}`
+    );
+    if (report.findings.length === 0) {
+      console.log('   🎉 零缺陷发现：所有工程不变量、安全基线、依赖拓扑与版本号检查均通过！\n');
+    } else {
+      console.log('');
+      for (const f of report.findings) {
+        console.log(`   [${f.severity}][${f.category}] ${f.file}:${f.line} — ${f.message}`);
+        if (f.fixHint) console.log(`      ↳ 建议：${f.fixHint}`);
+      }
+      console.log('');
+    }
+  }
+  if (!report.passed) {
+    process.exitCode = 1;
+  }
+}
+
+function cmdWiki(args) {
+  const targetDir = path.resolve(String(args.dir || args.repo || process.cwd()));
+  const outDir = path.resolve(String(args.out || path.join(targetDir, 'docs', 'wiki')));
+  const wm = new ProjectWorldModel({ repoPath: targetDir });
+  const snap = wm.refresh();
+  const auditReport = ProjectAuditor.run({ repoPath: targetDir, worldModel: wm });
+  const wiki = new ProjectWiki({ swarmId: 'cli-export' });
+  wiki.generateFromWorldModel(snap, {
+    projectName: snap.packageInfo?.name || path.basename(targetDir),
+    auditReport
+  });
+  const exported = wiki.exportToDir(outDir);
+  console.log(`\n📚 已基于项目世界模型导出活文档 Wiki 档案：`);
+  console.log(`   输出目录：${exported.outDir}`);
+  console.log(`   导出页面：${exported.pageCount} 篇 + README.md 索引`);
+  console.log(`   仓库健康度：${snap.healthScore}/100 · 审计评分：${auditReport.score}/100\n`);
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const cmd = args._[0] || 'help';
@@ -236,6 +293,12 @@ async function main() {
       break;
     case 'demo':
       await cmdDemo(args);
+      break;
+    case 'audit':
+      cmdAudit(args);
+      break;
+    case 'wiki':
+      cmdWiki(args);
       break;
     case 'init':
       cmdInit(args);

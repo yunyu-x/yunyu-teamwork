@@ -11,8 +11,9 @@ export class SwarmStorage {
     this.dataDir = dataDir ? path.resolve(dataDir) : null;
     this._memMeta = new Map();
     this._memEvents = new Map();
+    this._memLogs = new Map();
     if (!this.inMemory) {
-      fs.mkdirSync(this._swarmsRoot(), { recursive: true });
+      fs.mkdirSync(this._swarmsRoot(), { recursive: true, mode: 0o700 });
     }
   }
 
@@ -21,7 +22,14 @@ export class SwarmStorage {
   }
 
   _swarmDir(swarmId) {
-    return path.join(this._swarmsRoot(), sanitizeId(swarmId));
+    const safe = sanitizeId(swarmId);
+    const root = path.resolve(this._swarmsRoot());
+    const dir = path.resolve(root, safe);
+    const rel = path.relative(root, dir);
+    if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) {
+      throw new Error(`非法蜂群 ID "${swarmId}"`);
+    }
+    return dir;
   }
 
   _metaPath(swarmId) {
@@ -30,6 +38,10 @@ export class SwarmStorage {
 
   _eventsPath(swarmId) {
     return path.join(this._swarmDir(swarmId), 'events.jsonl');
+  }
+
+  _logsPath(swarmId) {
+    return path.join(this._swarmDir(swarmId), 'agent-logs.jsonl');
   }
 
   listSwarmIds() {
@@ -51,9 +63,9 @@ export class SwarmStorage {
       return;
     }
     const dir = this._swarmDir(swarmId);
-    fs.mkdirSync(dir, { recursive: true });
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
     const tmp = `${this._metaPath(swarmId)}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(meta, null, 2), 'utf8');
+    fs.writeFileSync(tmp, JSON.stringify(meta, null, 2), { encoding: 'utf8', mode: 0o600 });
     fs.renameSync(tmp, this._metaPath(swarmId));
   }
 
@@ -78,8 +90,8 @@ export class SwarmStorage {
       return record;
     }
     const dir = this._swarmDir(swarmId);
-    fs.mkdirSync(dir, { recursive: true });
-    fs.appendFileSync(this._eventsPath(swarmId), `${JSON.stringify(record)}\n`, 'utf8');
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    fs.appendFileSync(this._eventsPath(swarmId), `${JSON.stringify(record)}\n`, { encoding: 'utf8', mode: 0o600 });
     return record;
   }
 
@@ -94,10 +106,68 @@ export class SwarmStorage {
     return raw
       .split('\n')
       .filter(Boolean)
-      .map((line) => JSON.parse(line));
+      .map((line) => {
+        try {
+          return JSON.parse(line);
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+  }
+
+  appendAgentLog(swarmId, entry) {
+    const record = {
+      ...entry,
+      time: entry.time || new Date().toISOString()
+    };
+    if (this.inMemory) {
+      if (!this._memLogs.has(swarmId)) this._memLogs.set(swarmId, []);
+      const list = this._memLogs.get(swarmId);
+      list.push(structuredClone(record));
+      if (list.length > 500) list.shift();
+      return record;
+    }
+    const dir = this._swarmDir(swarmId);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.appendFileSync(this._logsPath(swarmId), `${JSON.stringify(record)}\n`, 'utf8');
+    return record;
+  }
+
+  readAgentLogs(swarmId, { member = null, limit = 150 } = {}) {
+    let entries;
+    if (this.inMemory) {
+      entries = (this._memLogs.get(swarmId) || []).map((e) => structuredClone(e));
+    } else {
+      const p = this._logsPath(swarmId);
+      if (!fs.existsSync(p)) return [];
+      const raw = fs.readFileSync(p, 'utf8').trim();
+      if (!raw) return [];
+      entries = raw
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => {
+          try {
+            return JSON.parse(line);
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean);
+    }
+    if (member) entries = entries.filter((e) => e.member === member);
+    if (limit > 0) entries = entries.slice(-limit);
+    return entries;
   }
 }
 
 export function sanitizeId(id) {
-  return String(id).replace(/[^a-zA-Z0-9._-]/g, '_');
+  const cleaned = String(id || '')
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .replace(/^[-_]+/, '');
+  if (!cleaned) {
+    throw new Error(`非法标识符 "${id}"：不允许空值或路径穿越字符`);
+  }
+  return cleaned.slice(0, 80);
 }

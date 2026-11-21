@@ -2,8 +2,10 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ChannelBridge } from '../channels/bridge.mjs';
 import { DEFAULT_CONFIG } from '../core/constants.mjs';
 import { TeamworkManager } from '../core/orchestrator.mjs';
+import { TwinsStore } from '../core/twins-store.mjs';
 import { createDefaultDriverRegistry } from '../drivers/registry.mjs';
 import { YunyuMcpServer } from '../mcp/server.mjs';
 import { handleApiRoute, sendJson } from './routes.mjs';
@@ -11,6 +13,13 @@ import { SseHub } from './sse.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WEB_DIR = path.resolve(__dirname, '..', '..', 'web');
+const REAL_WEB_DIR = fs.existsSync(WEB_DIR) ? fs.realpathSync(WEB_DIR) : WEB_DIR;
+
+const SECURITY_HEADERS = Object.freeze({
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'Referrer-Policy': 'no-referrer'
+});
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -43,13 +52,21 @@ export class YunyuServer {
     inMemory = false,
     repoPath = process.cwd(),
     webhookSecret = process.env.GITLAB_WEBHOOK_SECRET || '',
+    apiToken = process.env.YUNYU_API_TOKEN || '',
+    allowCustomCli = process.env.YUNYU_ALLOW_CUSTOM_CLI === 'true',
     manager = null,
-    driverRegistry = null
+    driverRegistry = null,
+    channelBridge = null,
+    twinsStore = null
   } = {}) {
     this.host = host;
     this.port = port;
     this.webhookSecret = webhookSecret;
-    this.driverRegistry = driverRegistry || createDefaultDriverRegistry();
+    this.apiToken = apiToken;
+    this.allowCustomCli = Boolean(allowCustomCli);
+    this.channelBridge = channelBridge || new ChannelBridge();
+    this.twinsStore = twinsStore || new TwinsStore({ dataDir, inMemory });
+    this.driverRegistry = driverRegistry || createDefaultDriverRegistry({ channelBridge: this.channelBridge });
     this.manager =
       manager ||
       new TeamworkManager({
@@ -81,24 +98,36 @@ export class YunyuServer {
             manager: this.manager,
             sse: this.sse,
             mcpServer: this.mcpServer,
-            webhookSecret: this.webhookSecret
+            channelBridge: this.channelBridge,
+            twinsStore: this.twinsStore,
+            webhookSecret: this.webhookSecret,
+            apiToken: this.apiToken,
+            allowCustomCli: this.allowCustomCli
           });
-          if (!handled) {
-            sendJson(res, 404, { error: `API 路由不存在: ${req.method} ${url.pathname}` });
+          if (!handled && !res.headersSent) {
+            sendJson(res, 404, { error: `API 路由不存在: ${req.method} ${url.pathname}` }, req);
           }
           return;
         }
 
         this._serveStatic(req, res, url.pathname);
       } catch (err) {
-        const status = err.statusCode || 400;
-        sendJson(res, status, { error: err.message || String(err) });
+        if (res.headersSent || res.writableEnded) return;
+        const isClientErr = err instanceof SyntaxError || err instanceof URIError;
+        const status = err.statusCode || (isClientErr ? 400 : err instanceof TypeError ? 500 : 400);
+        sendJson(res, status, { error: err.message || String(err) }, req);
       }
     };
 
     for (let attempt = 0; attempt < 8; attempt++) {
       const srv = http.createServer(handler);
-      await new Promise((resolve) => srv.listen(this.port, this.host, resolve));
+      await new Promise((resolve, reject) => {
+        srv.once('error', reject);
+        srv.listen(this.port, this.host, () => {
+          srv.off('error', reject);
+          resolve();
+        });
+      });
       const addr = srv.address();
       if (this.port === 0 && WHATWG_BAD_PORTS.has(addr.port)) {
         await new Promise((resolve) => srv.close(resolve));
@@ -113,23 +142,46 @@ export class YunyuServer {
   }
 
   _serveStatic(_req, res, pathname) {
-    const cleanRel = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
+    let decodedPath = pathname;
+    try {
+      decodedPath = decodeURIComponent(pathname);
+    } catch {
+      sendJson(res, 400, { error: '无效 URL 编码路径' }, _req);
+      return;
+    }
+    const cleanRel = decodedPath === '/' ? 'index.html' : decodedPath.replace(/^\/+/, '');
     const target = path.resolve(WEB_DIR, cleanRel);
-    if (!target.startsWith(WEB_DIR) || !fs.existsSync(target) || fs.statSync(target).isDirectory()) {
+    const rel = path.relative(WEB_DIR, target);
+
+    let safeFile = null;
+    if (rel && !rel.startsWith('..') && !path.isAbsolute(rel) && fs.existsSync(target) && !fs.statSync(target).isDirectory()) {
+      const realTarget = fs.realpathSync(target);
+      const realRel = path.relative(REAL_WEB_DIR, realTarget);
+      if (realRel && !realRel.startsWith('..') && !path.isAbsolute(realRel)) {
+        safeFile = realTarget;
+      }
+    }
+
+    if (!safeFile) {
       const fallback = path.join(WEB_DIR, 'index.html');
       if (fs.existsSync(fallback)) {
         const html = fs.readFileSync(fallback);
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': html.length });
+        res.writeHead(200, {
+          ...SECURITY_HEADERS,
+          'Content-Type': 'text/html; charset=utf-8',
+          'Content-Length': html.length
+        });
         res.end(html);
         return;
       }
-      sendJson(res, 404, { error: 'Not Found' });
+      sendJson(res, 404, { error: 'Not Found' }, _req);
       return;
     }
 
-    const ext = path.extname(target).toLowerCase();
-    const content = fs.readFileSync(target);
+    const ext = path.extname(safeFile).toLowerCase();
+    const content = fs.readFileSync(safeFile);
     res.writeHead(200, {
+      ...SECURITY_HEADERS,
       'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
       'Content-Length': content.length,
       'Cache-Control': 'no-cache'

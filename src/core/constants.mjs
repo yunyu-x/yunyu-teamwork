@@ -1,3 +1,5 @@
+export const APP_VERSION = '0.4.0';
+
 export const MEMBER_STATES = Object.freeze({
   WAITING: 'waiting',
   WORKING: 'working',
@@ -16,12 +18,58 @@ export const WORKSPACE_MODES = Object.freeze({
 export const MEMBER_ROLES = Object.freeze({
   COORDINATOR: 'coordinator',
   ARCHITECT: 'architect',
+  RESEARCHER: 'researcher',
   AUTHOR: 'author',
+  COMMITTER: 'committer',
+  REVIEWER: 'reviewer',
   VERIFIER: 'verifier',
   RELEASE: 'release',
+  DIGITAL_TWIN: 'digital_twin',
   MONITOR: 'monitor',
   HUMAN: 'human'
 });
+
+export const TASK_STATUSES = Object.freeze({
+  BACKLOG: 'backlog',
+  PLANNING: 'backlog',
+  READY: 'ready',
+  IN_PROGRESS: 'in_progress',
+  REVIEW: 'review',
+  QA: 'review',
+  BLOCKED: 'blocked',
+  DONE: 'done',
+  CANCELLED: 'cancelled'
+});
+
+export const QODER_ISSUE_COLUMNS = Object.freeze([
+  'backlog',
+  'ready',
+  'in_progress',
+  'review',
+  'done',
+  'cancelled'
+]);
+
+export const KNOWLEDGE_CATEGORIES = Object.freeze({
+  RESEARCH: 'research',
+  SPEC: 'spec',
+  ADR: 'adr',
+  PITFALL: 'pitfall',
+  BENCHMARK: 'benchmark'
+});
+
+export const AUTONOMY_MODES = Object.freeze({
+  HYBRID: 'hybrid',
+  AUTO_REPLY: 'auto_reply',
+  RELAY_HUMAN: 'relay_human'
+});
+
+export const PROTECTED_BRANCHES_DEFAULT = Object.freeze([
+  'main',
+  'master',
+  'production',
+  'release/*'
+]);
 
 export const MESSAGE_KINDS = Object.freeze({
   BRIEF: 'brief',

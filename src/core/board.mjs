@@ -228,7 +228,7 @@ export class MessageBoard extends EventEmitter {
 
     this.head = seq;
     this.messages.push(message);
-    if (isDonePost) {
+    if (isDonePost || resolvedKind === MESSAGE_KINDS.DONE) {
       this.done = true;
       this.doneSummary = body.replace(/^\[done\]\s*/i, '');
     }
@@ -242,17 +242,27 @@ export class MessageBoard extends EventEmitter {
    * Non-destructively attach a localized display translation to an existing immutable message.
    */
   annotateTranslation(seq, lang, translatedText) {
+    const cleanLang = String(lang || '').trim();
+    if (
+      !cleanLang ||
+      !/^[a-zA-Z0-9_-]{2,20}$/.test(cleanLang) ||
+      cleanLang === '__proto__' ||
+      cleanLang === 'constructor' ||
+      cleanLang === 'prototype'
+    ) {
+      throw new Error(`非法语言标识 "${lang}"`);
+    }
     const msg = this.messages.find((m) => m.seq === Number(seq));
     if (!msg) throw new Error(`未找到序号 #${seq} 的消息`);
-    msg.translations = msg.translations || {};
-    msg.translations[lang] = String(translatedText || '').trim();
+    msg.translations = msg.translations || Object.create(null);
+    msg.translations[cleanLang] = String(translatedText || '').trim();
     this.storage?.appendEvent(this.swarmId, {
       type: 'message_translation',
       seq: msg.seq,
-      lang,
-      text: msg.translations[lang]
+      lang: cleanLang,
+      text: msg.translations[cleanLang]
     });
-    this.emit('translation', { seq: msg.seq, lang, text: msg.translations[lang], message: msg });
+    this.emit('translation', { seq: msg.seq, lang: cleanLang, text: msg.translations[cleanLang], message: msg });
     return msg;
   }
 

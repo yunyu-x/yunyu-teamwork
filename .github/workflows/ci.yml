@@ -5,10 +5,23 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  verify:
-    runs-on: ubuntu-latest
+  test-matrix:
+    name: Verify (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -16,9 +29,24 @@ jobs:
           node-version: '22'
       - name: Syntax Check
         run: npm run check
-      - name: Unit & Integration Tests (incl. Git Worktree, GitLab Mock, MCP, SSE)
+      - name: Unit & Integration Tests (Worktree, GitLab Mock, MCP, SSE, Security)
         run: npm test
-      - name: Headless Chromium Web UI CDP QA
+      - name: Multi-Perspective Automated Project Audit
+        run: npm run audit
+      - name: CLI Offline Demo & Living Wiki Smoke Test
+        run: |
+          node bin/yunyu.mjs demo --once --port 0
+          node bin/yunyu.mjs wiki --out ./tmp-wiki-smoke
+
+  ui-qa:
+    name: Headless Chromium UI QA
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Headless Chromium Web UI CDP QA (Desktop + Mobile)
         run: |
           CHROME_PATH=$(which chromium-browser || which chromium || which google-chrome || true)
           if [ -n "$CHROME_PATH" ]; then

@@ -1,4 +1,5 @@
 import readline from 'node:readline';
+import { APP_VERSION } from '../core/constants.mjs';
 
 const PROTOCOL_VERSION = '2024-11-05';
 
@@ -38,8 +39,14 @@ export const MCP_TOOLS = [
       properties: {
         swarmId: { type: 'string' },
         name: { type: 'string', description: '成员短名（小写，如 backend / frontend / qa）' },
-        role: { type: 'string', enum: ['coordinator', 'architect', 'author', 'verifier', 'release', 'human'] },
-        driver: { type: 'string', enum: ['simulated', 'openai-compatible', 'cli-agent', 'webhook', 'human'] },
+        role: {
+          type: 'string',
+          enum: ['coordinator', 'architect', 'researcher', 'author', 'committer', 'reviewer', 'verifier', 'release', 'digital_twin', 'human']
+        },
+        driver: {
+          type: 'string',
+          enum: ['simulated', 'openai-compatible', 'cli-agent', 'research-synthesizer', 'digital-twin', 'webhook', 'human']
+        },
         model: { type: 'string' },
         workspace: { type: 'string', enum: ['inherit', 'share', 'branch'] },
         owns: { type: 'array', items: { type: 'string' } },
@@ -156,6 +163,228 @@ export const MCP_TOOLS = [
       },
       required: ['swarmId', 'sourceBranch', 'title']
     }
+  },
+  {
+    name: 'gitlab_comment_issue',
+    description: '在关联 GitLab 仓库的指定 Issue 下发表评论',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        swarmId: { type: 'string' },
+        issueIid: { type: 'integer' },
+        body: { type: 'string' }
+      },
+      required: ['swarmId', 'issueIid', 'body']
+    }
+  },
+  {
+    name: 'task_list',
+    description: '列出蜂群任务与交付物看板（Kanban）中的所有任务卡',
+    inputSchema: {
+      type: 'object',
+      properties: { swarmId: { type: 'string' } },
+      required: ['swarmId']
+    }
+  },
+  {
+    name: 'task_create',
+    description: '在蜂群任务看板中创建一条结构化任务卡',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        swarmId: { type: 'string' },
+        title: { type: 'string' },
+        description: { type: 'string' },
+        status: { type: 'string', enum: ['backlog', 'ready', 'in_progress', 'review', 'done', 'cancelled'] },
+        priority: { type: 'string', enum: ['P0', 'P1', 'P2'] },
+        assignee: { type: 'string' },
+        dependsOn: { type: 'array', items: { type: 'string' } },
+        spec: { type: 'string' },
+        acceptanceCriteria: { type: 'array', items: { type: 'string' } },
+        gitlabIssueIid: { type: 'integer' }
+      },
+      required: ['swarmId', 'title']
+    }
+  },
+  {
+    name: 'task_update',
+    description: '更新任务看板中任务的状态列、负责人或关联交付物 #seq',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        swarmId: { type: 'string' },
+        taskId: { type: 'string' },
+        status: { type: 'string', enum: ['backlog', 'ready', 'in_progress', 'review', 'done', 'cancelled'] },
+        assignee: { type: 'string' },
+        deliverableSeqs: { type: 'array', items: { type: 'integer' } }
+      },
+      required: ['swarmId', 'taskId']
+    }
+  },
+  {
+    name: 'issue_ready',
+    description: '列出所有 DAG 前置依赖已满足且无阻塞的就绪 Issue（Beads ready 语义）',
+    inputSchema: {
+      type: 'object',
+      properties: { swarmId: { type: 'string' }, assignee: { type: 'string' } },
+      required: ['swarmId']
+    }
+  },
+  {
+    name: 'issue_claim',
+    description: '以 TTL 租约原子认领一个 Issue，防止多 Agent 并发冲突',
+    inputSchema: {
+      type: 'object',
+      properties: { swarmId: { type: 'string' }, taskId: { type: 'string' }, member: { type: 'string' }, ttlMs: { type: 'integer' } },
+      required: ['swarmId', 'taskId', 'member']
+    }
+  },
+  {
+    name: 'issue_accept',
+    description: '在待验收阶段批准通过 Issue 并流转至已完成',
+    inputSchema: {
+      type: 'object',
+      properties: { swarmId: { type: 'string' }, taskId: { type: 'string' }, reviewer: { type: 'string' }, summary: { type: 'string' } },
+      required: ['swarmId', 'taskId']
+    }
+  },
+  {
+    name: 'budget_status',
+    description: '查询蜂群与成员的 Token/轮次/费用预算消耗与治理状态',
+    inputSchema: {
+      type: 'object',
+      properties: { swarmId: { type: 'string' } },
+      required: ['swarmId']
+    }
+  },
+  {
+    name: 'knowledge_search',
+    description: '检索蜂群共享知识库（调研简报、Spec、ADR、踩坑记录）',
+    inputSchema: {
+      type: 'object',
+      properties: { swarmId: { type: 'string' }, q: { type: 'string' }, category: { type: 'string' } },
+      required: ['swarmId']
+    }
+  },
+  {
+    name: 'knowledge_save',
+    description: '将结构化情报调研或架构决策写入蜂群共享知识库',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        swarmId: { type: 'string' },
+        title: { type: 'string' },
+        category: { type: 'string' },
+        summary: { type: 'string' },
+        content: { type: 'string' },
+        tags: { type: 'array', items: { type: 'string' } }
+      },
+      required: ['swarmId', 'title', 'content']
+    }
+  },
+  {
+    name: 'git_diff',
+    description: '获取指定成员隔离 Git Worktree 分支的统一 diff 与审计状态（适用于代码复核）',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        swarmId: { type: 'string' },
+        member: { type: 'string' }
+      },
+      required: ['swarmId', 'member']
+    }
+  },
+  {
+    name: 'git_push',
+    description: '将成员的非受保护隔离工作分支安全推送到远端（默认拒绝 force 与主干直推）',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        swarmId: { type: 'string' },
+        member: { type: 'string' },
+        remote: { type: 'string' }
+      },
+      required: ['swarmId', 'member']
+    }
+  },
+  {
+    name: 'world_model_overview',
+    description: '获取项目的实时世界模型总览（模块域分布、高扇入核心枢纽、依赖拓扑、循环依赖与健康度评分）',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        swarmId: { type: 'string' },
+        refresh: { type: 'boolean', description: '是否强制重新扫描仓库代码' }
+      },
+      required: ['swarmId']
+    }
+  },
+  {
+    name: 'world_model_impact',
+    description: '变更爆炸半径模拟：在改动文件前预测直接/传递下游模块、受影响测试、需联动成员与工程不变量警告',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        swarmId: { type: 'string' },
+        targets: { type: 'array', items: { type: 'string' }, description: '待修改的相对文件路径列表' }
+      },
+      required: ['swarmId', 'targets']
+    }
+  },
+  {
+    name: 'wiki_list',
+    description: '检索或列出项目活文档 Wiki 档案页面列表',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        swarmId: { type: 'string' },
+        q: { type: 'string' },
+        category: { type: 'string' }
+      },
+      required: ['swarmId']
+    }
+  },
+  {
+    name: 'wiki_read',
+    description: '按 slug 读取指定项目 Wiki 页面的完整 Markdown 正文与版本修订历史',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        swarmId: { type: 'string' },
+        slug: { type: 'string' }
+      },
+      required: ['swarmId', 'slug']
+    }
+  },
+  {
+    name: 'wiki_upsert',
+    description: '创建或修订项目 Wiki 页面（追加式不可变版本记录，支持自动/人工知识沉淀）',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        swarmId: { type: 'string' },
+        slug: { type: 'string' },
+        title: { type: 'string' },
+        category: { type: 'string' },
+        content: { type: 'string' },
+        author: { type: 'string' },
+        summary: { type: 'string' },
+        tags: { type: 'array', items: { type: 'string' } }
+      },
+      required: ['swarmId', 'slug', 'title', 'content']
+    }
+  },
+  {
+    name: 'project_audit',
+    description: '运行全仓多视角自动审计（零外部依赖铁律、硬编码密钥、eval/注入风险、循环依赖、版本号一致性）',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        swarmId: { type: 'string' },
+        createIssues: { type: 'boolean', description: '是否将 P0/P1 审计发现自动转为待开始 Issue' }
+      },
+      required: ['swarmId']
+    }
   }
 ];
 
@@ -169,11 +398,19 @@ export class YunyuMcpServer {
   }
 
   async handleRpc(req) {
-    const id = req.id ?? null;
-    const method = req.method;
-    const params = req.params || {};
-
+    let id = null;
     try {
+      if (!req || typeof req !== 'object') {
+        return {
+          jsonrpc: '2.0',
+          id: null,
+          error: { code: -32600, message: 'Invalid Request: JSON-RPC payload must be an object' }
+        };
+      }
+      id = req.id ?? null;
+      const method = req.method;
+      const params = req.params || {};
+
       if (method === 'initialize') {
         return {
           jsonrpc: '2.0',
@@ -181,7 +418,7 @@ export class YunyuMcpServer {
           result: {
             protocolVersion: PROTOCOL_VERSION,
             capabilities: { tools: {}, resources: {} },
-            serverInfo: { name: 'yunyu-teamwork-mcp', version: '0.1.0' }
+            serverInfo: { name: 'yunyu-teamwork-mcp', version: APP_VERSION }
           }
         };
       }
@@ -199,31 +436,58 @@ export class YunyuMcpServer {
       }
 
       if (method === 'resources/list') {
-        const resources = this.manager.listSwarms().map((s) => ({
-          uri: `yunyu://swarms/${s.id}/board`,
-          name: `${s.title}（留言板）`,
-          mimeType: 'application/json'
-        }));
+        const resources = [];
+        for (const s of this.manager.listSwarms()) {
+          resources.push({
+            uri: `yunyu://swarms/${s.id}/board`,
+            name: `${s.title}（留言板）`,
+            mimeType: 'application/json'
+          });
+          resources.push({
+            uri: `yunyu://swarms/${s.id}/wiki`,
+            name: `${s.title}（项目 Wiki 档案）`,
+            mimeType: 'application/json'
+          });
+        }
         return { jsonrpc: '2.0', id, result: { resources } };
       }
 
       if (method === 'resources/read') {
-        const m = String(params.uri || '').match(/^yunyu:\/\/swarms\/([^/]+)\/board$/);
-        if (!m) throw new Error(`未知资源 URI: ${params.uri}`);
-        const swarm = this._requireSwarm(m[1]);
-        return {
-          jsonrpc: '2.0',
-          id,
-          result: {
-            contents: [
-              {
-                uri: params.uri,
-                mimeType: 'application/json',
-                text: JSON.stringify(swarm.board.read({ since: 0, limit: 200 }), null, 2)
-              }
-            ]
-          }
-        };
+        const boardMatch = String(params.uri || '').match(/^yunyu:\/\/swarms\/([^/]+)\/board$/);
+        if (boardMatch) {
+          const swarm = this._requireSwarm(boardMatch[1]);
+          return {
+            jsonrpc: '2.0',
+            id,
+            result: {
+              contents: [
+                {
+                  uri: params.uri,
+                  mimeType: 'application/json',
+                  text: JSON.stringify(swarm.board.read({ since: 0, limit: 200 }), null, 2)
+                }
+              ]
+            }
+          };
+        }
+        const wikiMatch = String(params.uri || '').match(/^yunyu:\/\/swarms\/([^/]+)\/wiki$/);
+        if (wikiMatch) {
+          const swarm = this._requireSwarm(wikiMatch[1]);
+          return {
+            jsonrpc: '2.0',
+            id,
+            result: {
+              contents: [
+                {
+                  uri: params.uri,
+                  mimeType: 'application/json',
+                  text: JSON.stringify({ pages: swarm.wiki.listPages() }, null, 2)
+                }
+              ]
+            }
+          };
+        }
+        throw new Error(`未知资源 URI: ${params.uri}`);
       }
 
       if (method === 'tools/call') {
@@ -269,11 +533,12 @@ export class YunyuMcpServer {
         return this._requireSwarm(args.swarmId).getStatus();
       case 'swarm_add': {
         const swarm = this._requireSwarm(args.swarmId);
-        return swarm.addMember(args);
+        const added = swarm.addMember(args);
+        return Array.isArray(added) ? added.map((m) => swarm.toPublicMember(m)) : swarm.toPublicMember(added);
       }
       case 'swarm_kill': {
         const swarm = this._requireSwarm(args.swarmId);
-        return swarm.killMember(args.name, { force: Boolean(args.force) });
+        return swarm.toPublicMember(swarm.killMember(args.name, { force: Boolean(args.force) }));
       }
       case 'post_message': {
         const swarm = this._requireSwarm(args.swarmId);
@@ -296,7 +561,89 @@ export class YunyuMcpServer {
       }
       case 'worktree_merge': {
         const swarm = this._requireSwarm(args.swarmId);
-        return swarm.worktrees.mergeToBase(args.member, { commitMessage: args.commitMessage });
+        const res = swarm.worktrees.mergeToBase(args.member, { commitMessage: args.commitMessage });
+        swarm._saveMeta();
+        swarm.emit('status', swarm.getStatus());
+        return res;
+      }
+      case 'git_diff': {
+        const swarm = this._requireSwarm(args.swarmId);
+        return {
+          member: args.member,
+          status: swarm.worktrees.getStatus(args.member),
+          diff: swarm.worktrees.getDiff(args.member)
+        };
+      }
+      case 'git_push': {
+        const swarm = this._requireSwarm(args.swarmId);
+        return swarm.worktrees.pushBranch(args.member, { remote: args.remote || 'origin', force: false });
+      }
+      case 'world_model_overview': {
+        const swarm = this._requireSwarm(args.swarmId);
+        return args.refresh ? swarm.refreshWorldModel() : swarm.getWorldModelOverview();
+      }
+      case 'world_model_impact': {
+        const swarm = this._requireSwarm(args.swarmId);
+        return swarm.simulateChangeImpact(args.targets || []);
+      }
+      case 'wiki_list': {
+        const swarm = this._requireSwarm(args.swarmId);
+        return { pages: swarm.wiki.search({ q: args.q || '', category: args.category || 'all' }) };
+      }
+      case 'wiki_read': {
+        const swarm = this._requireSwarm(args.swarmId);
+        const page = swarm.wiki.getPage(args.slug);
+        if (!page) throw new Error(`未找到 Wiki 页面 "${args.slug}"`);
+        return page;
+      }
+      case 'wiki_upsert': {
+        const swarm = this._requireSwarm(args.swarmId);
+        return swarm.wiki.upsertPage(args);
+      }
+      case 'project_audit': {
+        const swarm = this._requireSwarm(args.swarmId);
+        return swarm.runProjectAudit({ createIssues: Boolean(args.createIssues) });
+      }
+      case 'task_list': {
+        const swarm = this._requireSwarm(args.swarmId);
+        return { tasks: swarm.tasks.listTasks() };
+      }
+      case 'task_create': {
+        const swarm = this._requireSwarm(args.swarmId);
+        return swarm.tasks.createTask(args);
+      }
+      case 'task_update': {
+        const swarm = this._requireSwarm(args.swarmId);
+        return swarm.tasks.updateTask(args.taskId, args);
+      }
+      case 'issue_ready': {
+        const swarm = this._requireSwarm(args.swarmId);
+        return { tasks: swarm.tasks.listReadyTasks({ assignee: args.assignee || null }) };
+      }
+      case 'issue_claim': {
+        const swarm = this._requireSwarm(args.swarmId);
+        return swarm.tasks.claimTask(args.taskId, args.member, { ttlMs: args.ttlMs || 300_000 });
+      }
+      case 'issue_accept': {
+        const swarm = this._requireSwarm(args.swarmId);
+        return swarm.tasks.acceptTask(args.taskId, { reviewer: args.reviewer || 'coordinator', summary: args.summary || '' });
+      }
+      case 'budget_status': {
+        const swarm = this._requireSwarm(args.swarmId);
+        return swarm.budget.getSummary();
+      }
+      case 'knowledge_search': {
+        const swarm = this._requireSwarm(args.swarmId);
+        return { entries: swarm.knowledge.search({ q: args.q || '', category: args.category || 'all' }) };
+      }
+      case 'knowledge_save': {
+        const swarm = this._requireSwarm(args.swarmId);
+        return swarm.knowledge.addEntry(args);
+      }
+      case 'gitlab_comment_issue': {
+        const swarm = this._requireSwarm(args.swarmId);
+        if (!swarm.gitlab?.client) throw new Error('当前蜂群未关联 GitLab 实例');
+        return await swarm.gitlab.client.createIssueNote(swarm.gitlab.projectId, args.issueIid, args.body);
       }
       case 'gitlab_list_issues': {
         const swarm = this._requireSwarm(args.swarmId);
@@ -313,6 +660,7 @@ export class YunyuMcpServer {
           description: args.description || ''
         });
         swarm.gitlab.linkedMrIid = mr.iid;
+        swarm._saveMeta();
         return mr;
       }
       default:

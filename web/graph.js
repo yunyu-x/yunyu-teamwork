@@ -1,9 +1,13 @@
 const ROLE_COLORS = {
   coordinator: '#38e8ff',
   architect: '#a78bfa',
+  researcher: '#38bdf8',
   author: '#34d399',
+  committer: '#2dd4bf',
+  reviewer: '#f472b6',
   verifier: '#fb7185',
   release: '#fbbf24',
+  digital_twin: '#818cf8',
   monitor: '#94a3b8',
   human: '#60a5fa',
   gitlab: '#fb923c'
@@ -11,7 +15,7 @@ const ROLE_COLORS = {
 
 export function colorForNode(id, role) {
   if (id === 'gitlab') return ROLE_COLORS.gitlab;
-  return ROLE_COLORS[role] || '#38e8ff';
+  return Object.hasOwn(ROLE_COLORS, role) ? ROLE_COLORS[role] : '#38e8ff';
 }
 
 /**

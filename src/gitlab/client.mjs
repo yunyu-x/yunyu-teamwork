@@ -1,3 +1,13 @@
+import { APP_VERSION } from '../core/constants.mjs';
+
+function requirePositiveInt(label, val) {
+  const n = Number(val);
+  if (!Number.isInteger(n) || n <= 0) {
+    throw new Error(`非法 GitLab ${label}: "${val}"（必须为正整数）`);
+  }
+  return n;
+}
+
 /**
  * Zero-dependency GitLab REST API v4 Client (compatible with gitlab.com & self-hosted CE/EE).
  */
@@ -24,7 +34,7 @@ export class GitLabClient {
 
     const headers = {
       Accept: 'application/json',
-      'User-Agent': 'Yunyu-Teamwork/0.1.0'
+      'User-Agent': `Yunyu-Teamwork/${APP_VERSION}`
     };
     if (this.token) headers['PRIVATE-TOKEN'] = this.token;
     if (body !== null && body !== undefined) headers['Content-Type'] = 'application/json';
@@ -71,7 +81,7 @@ export class GitLabClient {
   }
 
   getIssue(projectId, issueIid) {
-    return this.request('GET', `${this._projectPath(projectId)}/issues/${issueIid}`);
+    return this.request('GET', `${this._projectPath(projectId)}/issues/${requirePositiveInt('issueIid', issueIid)}`);
   }
 
   createIssue(projectId, payload) {
@@ -79,15 +89,15 @@ export class GitLabClient {
   }
 
   updateIssue(projectId, issueIid, payload) {
-    return this.request('PUT', `${this._projectPath(projectId)}/issues/${issueIid}`, { body: payload });
+    return this.request('PUT', `${this._projectPath(projectId)}/issues/${requirePositiveInt('issueIid', issueIid)}`, { body: payload });
   }
 
   listIssueNotes(projectId, issueIid) {
-    return this.request('GET', `${this._projectPath(projectId)}/issues/${issueIid}/notes`);
+    return this.request('GET', `${this._projectPath(projectId)}/issues/${requirePositiveInt('issueIid', issueIid)}/notes`);
   }
 
   createIssueNote(projectId, issueIid, body) {
-    return this.request('POST', `${this._projectPath(projectId)}/issues/${issueIid}/notes`, {
+    return this.request('POST', `${this._projectPath(projectId)}/issues/${requirePositiveInt('issueIid', issueIid)}/notes`, {
       body: { body }
     });
   }
@@ -98,7 +108,7 @@ export class GitLabClient {
   }
 
   getMergeRequest(projectId, mrIid) {
-    return this.request('GET', `${this._projectPath(projectId)}/merge_requests/${mrIid}`);
+    return this.request('GET', `${this._projectPath(projectId)}/merge_requests/${requirePositiveInt('mrIid', mrIid)}`);
   }
 
   createMergeRequest(projectId, payload) {
@@ -106,13 +116,13 @@ export class GitLabClient {
   }
 
   createMergeRequestNote(projectId, mrIid, body) {
-    return this.request('POST', `${this._projectPath(projectId)}/merge_requests/${mrIid}/notes`, {
+    return this.request('POST', `${this._projectPath(projectId)}/merge_requests/${requirePositiveInt('mrIid', mrIid)}/notes`, {
       body: { body }
     });
   }
 
   mergeMergeRequest(projectId, mrIid, payload = {}) {
-    return this.request('PUT', `${this._projectPath(projectId)}/merge_requests/${mrIid}/merge`, {
+    return this.request('PUT', `${this._projectPath(projectId)}/merge_requests/${requirePositiveInt('mrIid', mrIid)}/merge`, {
       body: payload
     });
   }
@@ -123,11 +133,11 @@ export class GitLabClient {
   }
 
   getPipeline(projectId, pipelineId) {
-    return this.request('GET', `${this._projectPath(projectId)}/pipelines/${pipelineId}`);
+    return this.request('GET', `${this._projectPath(projectId)}/pipelines/${requirePositiveInt('pipelineId', pipelineId)}`);
   }
 
   listPipelineJobs(projectId, pipelineId) {
-    return this.request('GET', `${this._projectPath(projectId)}/pipelines/${pipelineId}/jobs`);
+    return this.request('GET', `${this._projectPath(projectId)}/pipelines/${requirePositiveInt('pipelineId', pipelineId)}/jobs`);
   }
 
   listBranches(projectId) {

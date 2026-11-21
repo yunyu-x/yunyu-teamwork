@@ -1,11 +1,18 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import { MEMBER_ROLES, VERIFIER_FORBIDDEN_DEFAULT } from './constants.mjs';
 
+const CASE_INSENSITIVE_FS = process.platform === 'win32' || process.platform === 'darwin';
+
 export function normalizeRelPath(filePath) {
-  return String(filePath || '')
+  const raw = String(filePath || '')
+    .trim()
     .replace(/\\/g, '/')
-    .replace(/^\.\/+/, '')
     .replace(/^\/+/, '');
+  if (!raw) return '';
+  const normalized = path.posix.normalize(raw);
+  if (normalized === '.') return '';
+  return normalized.replace(/^\.\/+/, '');
 }
 
 /**
@@ -13,6 +20,7 @@ export function normalizeRelPath(filePath) {
  */
 export function matchGlob(filePath, rawPattern) {
   const file = normalizeRelPath(filePath);
+  if (file === '..' || file.startsWith('../')) return false;
   let pattern = normalizeRelPath(rawPattern);
   if (!pattern) return false;
   if (pattern === '*' || pattern === '**' || pattern === '**/*') return true;
@@ -44,7 +52,7 @@ export function matchGlob(filePath, rawPattern) {
     }
   }
   reStr += '$';
-  return new RegExp(reStr).test(file);
+  return new RegExp(reStr, CASE_INSENSITIVE_FS ? 'i' : '').test(file);
 }
 
 /**
@@ -76,7 +84,16 @@ export class OwnershipGuard {
 
   setMemberRule(agentName, { role = MEMBER_ROLES.AUTHOR, owns = [], mustNotTouch = [] } = {}) {
     const forbidden = new Set(mustNotTouch);
-    if (role === MEMBER_ROLES.VERIFIER || agentName === 'qa') {
+    if (
+      role === MEMBER_ROLES.VERIFIER ||
+      role === MEMBER_ROLES.REVIEWER ||
+      role === MEMBER_ROLES.RESEARCHER ||
+      role === 'qa' ||
+      agentName === 'qa' ||
+      agentName === 'verifier' ||
+      agentName === 'reviewer' ||
+      agentName === 'researcher'
+    ) {
       for (const p of VERIFIER_FORBIDDEN_DEFAULT) forbidden.add(p);
     }
     this.rules.set(agentName, {
@@ -87,12 +104,24 @@ export class OwnershipGuard {
     });
   }
 
+  removeMemberRule(agentName) {
+    this.rules.delete(agentName);
+  }
+
   getMemberRule(agentName) {
     return this.rules.get(agentName) || null;
   }
 
   checkWrite(agentName, filePath) {
     const rel = normalizeRelPath(filePath);
+    if (!rel || rel === '..' || rel.startsWith('../')) {
+      return {
+        allowed: false,
+        path: rel,
+        rule: 'path-traversal',
+        reason: `安全拦截：路径 "${filePath}" 包含非法路径穿越或越出仓库根目录`
+      };
+    }
 
     for (const pat of this.globalForbidden) {
       if (matchGlob(rel, pat)) {
@@ -113,8 +142,8 @@ export class OwnershipGuard {
     for (const pat of rule.mustNotTouch) {
       if (matchGlob(rel, pat)) {
         const extra =
-          rule.role === MEMBER_ROLES.VERIFIER
-            ? '（铁律：QA/验证者严禁修改业务源码，请发缺陷单交由对应作者修复）'
+          rule.role === MEMBER_ROLES.VERIFIER || rule.role === MEMBER_ROLES.REVIEWER
+            ? '（铁律：复核者/QA 验证者严禁修改业务源码，请开具复核意见或缺陷单交由对应作者修复）'
             : '';
         return {
           allowed: false,

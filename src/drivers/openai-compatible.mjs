@@ -67,6 +67,39 @@ const OPENAI_TOOL_SCHEMAS = [
   {
     type: 'function',
     function: {
+      name: 'git_status',
+      description: '查看当前或指定成员 Git 工作区分支与变更文件列表',
+      parameters: {
+        type: 'object',
+        properties: { targetMember: { type: 'string' } }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'git_diff',
+      description: '查看当前或指定成员分支相对基线的统一 git diff（适用于复核与提交）',
+      parameters: {
+        type: 'object',
+        properties: { targetMember: { type: 'string' }, base: { type: 'string' } }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'git_log',
+      description: '查看当前或指定成员工作区最近提交记录',
+      parameters: {
+        type: 'object',
+        properties: { targetMember: { type: 'string' }, limit: { type: 'integer' } }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
       name: 'git_commit',
       description: '将当前隔离 worktree 中的合规改动提交为本地 commit',
       parameters: {
@@ -79,11 +112,195 @@ const OPENAI_TOOL_SCHEMAS = [
   {
     type: 'function',
     function: {
+      name: 'git_push',
+      description: '将当前成员的非受保护隔离工作分支推送至远端（默认禁止 force 与主干直推）',
+      parameters: {
+        type: 'object',
+        properties: { remote: { type: 'string' } }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'git_review_branch',
+      description: '聚合指定作者分支的 diff、提交日志与 OwnershipGuard 越权审计报告，供复核官审查',
+      parameters: {
+        type: 'object',
+        properties: { targetMember: { type: 'string' } },
+        required: ['targetMember']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'run_verification',
+      description: '执行测试/语法检查验证命令并返回结构化通过结果',
+      parameters: {
+        type: 'object',
+        properties: { command: { type: 'string' } },
+        required: ['command']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
       name: 'read_board',
       description: '读取蜂群留言板最新消息',
       parameters: {
         type: 'object',
         properties: { since: { type: 'integer' }, limit: { type: 'integer' } }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'research_workspace',
+      description: '在当前代码仓库中按关键词检索相关文档与源码片段',
+      parameters: {
+        type: 'object',
+        properties: { query: { type: 'string' }, maxMatches: { type: 'integer' } },
+        required: ['query']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'research_web',
+      description: '抓取并提取外部 HTTP/HTTPS 网页标题、章节与正文用于信息搜集整合',
+      parameters: {
+        type: 'object',
+        properties: { url: { type: 'string' } },
+        required: ['url']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'knowledge_search',
+      description: '检索项目共享知识库（调研简报、冻结 Spec、ADR、踩坑记录）',
+      parameters: {
+        type: 'object',
+        properties: { q: { type: 'string' }, category: { type: 'string' }, tag: { type: 'string' } }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'knowledge_save',
+      description: '将结构化调研报告或架构决策写入项目共享知识库',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: { type: 'string' },
+          category: { type: 'string' },
+          summary: { type: 'string' },
+          content: { type: 'string' },
+          tags: { type: 'array', items: { type: 'string' } }
+        },
+        required: ['title', 'content']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'issue_ready',
+      description: '查询 DAG 前置依赖已全部完成且当前可认领的就绪 Issue 队列（Beads ready 语义）',
+      parameters: { type: 'object', properties: {} }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'issue_claim',
+      description: '以 TTL 租约原子认领一个就绪 Issue，防止与其他并行 Agent 重复开工',
+      parameters: {
+        type: 'object',
+        properties: { taskId: { type: 'string' }, ttlMs: { type: 'integer' } },
+        required: ['taskId']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'world_model_overview',
+      description: '读取项目实时世界模型（模块域拓扑、高扇入核心文件、依赖边、循环依赖与健康度）',
+      parameters: {
+        type: 'object',
+        properties: { refresh: { type: 'boolean' } }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'world_model_impact',
+      description: '变更爆炸半径预测：在编辑源码前模拟改动目标文件对下游模块、测试与协作成员的影响',
+      parameters: {
+        type: 'object',
+        properties: { targets: { type: 'array', items: { type: 'string' } } },
+        required: ['targets']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'wiki_list',
+      description: '搜索或列出项目活文档 Wiki 页面目录',
+      parameters: {
+        type: 'object',
+        properties: { q: { type: 'string' }, category: { type: 'string' } }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'wiki_read',
+      description: '按 slug 读取项目 Wiki 页面的完整内容与修订历史',
+      parameters: {
+        type: 'object',
+        properties: { slug: { type: 'string' } },
+        required: ['slug']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'wiki_upsert',
+      description: '新建或更新项目 Wiki 档案页面（支持架构设计、模块约定、踩坑与决策沉淀）',
+      parameters: {
+        type: 'object',
+        properties: {
+          slug: { type: 'string' },
+          title: { type: 'string' },
+          category: { type: 'string' },
+          content: { type: 'string' },
+          summary: { type: 'string' },
+          tags: { type: 'array', items: { type: 'string' } }
+        },
+        required: ['slug', 'title', 'content']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'project_audit',
+      description: '执行全仓工程不变量与安全审计（检查零外部依赖、硬编码密钥、危险调用、循环依赖）',
+      parameters: {
+        type: 'object',
+        properties: { createIssues: { type: 'boolean' } }
       }
     }
   }
@@ -114,6 +331,7 @@ export class OpenAICompatibleDriver extends AgentDriver {
     }
 
     const tools = createGuardedWorkspaceTools(ctx);
+    const worldBriefing = swarm.worldModel?.snapshot ? `\n\n${swarm.worldModel.getAgentBriefing(member.name)}` : '';
     const systemPrompt = [
       `你是云驭协同（Yunyu Teamwork）蜂群成员 @${member.name}，角色：${member.role}。`,
       `蜂群主题：${swarm.title}。`,
@@ -123,8 +341,9 @@ export class OpenAICompatibleDriver extends AgentDriver {
       '协作铁律：',
       '1. 全程必须使用清晰简洁的简体中文汇报（代码标识符、路径、命令与报错原文保留英文）。',
       '2. 交接时只 @ 下一环节责任人（如 @qa 或 @coordinator），引用历史消息使用 #seq 编号。',
-      '3. 若文件所有权守卫拒绝写入，严禁绕过，请在回复中说明并 @ 对应作者处理。'
-    ].join('\n');
+      '3. 若文件所有权守卫拒绝写入，严禁绕过，请在回复中说明并 @ 对应作者处理。',
+      '4. 修改核心模块前优先调用 world_model_impact 评估爆炸半径，关键决策沉淀至 wiki_upsert。'
+    ].join('\n') + worldBriefing;
 
     const historyText = (unreadMessages.length ? unreadMessages : [triggerMessage])
       .map((m) => `#${m.seq} [${m.channel}] ${m.author}: ${m.text}`)
@@ -168,6 +387,17 @@ export class OpenAICompatibleDriver extends AgentDriver {
       messages.push(choice);
 
       if (!Array.isArray(choice.tool_calls) || choice.tool_calls.length === 0) {
+        // Post-turn OwnershipGuard verification against any files modified in the workspace
+        if (ctx.worktrees && ctx.ownership) {
+          const changed = ctx.worktrees.listChangedFiles(member.name);
+          if (changed.length > 0) {
+            const audit = ctx.ownership.auditChangedFiles(member.name, changed);
+            if (!audit.passed) {
+              const msg = audit.violations.map((v) => `${v.path}（${v.reason}）`).join('；');
+              throw new Error(`LLM Agent 越权修改文件被拦截：${msg}`);
+            }
+          }
+        }
         return {
           reply: (choice.content || '').trim() || `@coordinator 已完成 #${triggerMessage.seq} 处理。`,
           channel: triggerMessage.channel,
