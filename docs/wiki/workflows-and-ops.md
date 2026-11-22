@@ -1,4 +1,4 @@
-<!-- yunyu-wiki slug=workflows-and-ops version=1 category=operations updatedAt=2026-11-22T03:38:48.762Z -->
+<!-- yunyu-wiki slug=workflows-and-ops version=1 category=operations updatedAt=2026-11-22T11:07:02.552Z -->
 # 工程规范、测试矩阵与质量门禁
 ## 1. 自动化测试清单
 - `tests/integration/digital-twin-channels.test.mjs` (218 行 · 覆盖依赖 5 个源码模块)

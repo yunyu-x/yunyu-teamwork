@@ -1,0 +1,679 @@
+{
+  "$schema": "yunyu-review-backlog/v1",
+  "generatedAt": "2026-11-22",
+  "baselineVersion": "0.5.1",
+  "independentReview": {
+    "date": "2026-11-22",
+    "result": "10 项核心论断证实；3 处偏差已修正；6 项新盲区（C-04/C-05/C-06/C-07/P-04/S-03）入 backlog；5 处路线硬伤已修复",
+    "auditGate": "npm run verify 完整门禁全绿（2026-11-22，exit 0）：check 通过 + test 46/46（11.7s）+ qa:ui 双端 ALL PASSED（22.6s）+ audit 100/100"
+  },
+  "docs": {
+    "baseline": "docs/review/01-architecture-baseline.md",
+    "comparison": "docs/review/02-doc-comparison.md",
+    "roadmap": "docs/review/03-enterprise-roadmap.md",
+    "pmBenchmark": "docs/review/04-enterprise-pm-benchmark.md"
+  },
+  "decisionGates": [
+    {
+      "id": "D1",
+      "question": "企业级定位：单节点企业内网平台 vs 多租户 SaaS",
+      "leaning": "单节点先行",
+      "status": "open"
+    },
+    {
+      "id": "D2",
+      "question": "node:sqlite 是否违反零依赖不变量（Node 内置模块）",
+      "leaning": "不违反；需提升 engines 下限至免 flag 版本（22.13+/23.4+）并写入 AGENTS.md；node:sqlite 同步 API 与 P-01 异步化张力需 ADR 论证",
+      "status": "open"
+    },
+    {
+      "id": "D3",
+      "question": "P0 实施顺序",
+      "leaning": "Q-01 测试床先行 → C-01 → S-01 → S-02/C-05 同批，C-02 并行",
+      "status": "open"
+    },
+    {
+      "id": "D4",
+      "question": "扩展路径：垂直优化 vs 蜂群分片多进程",
+      "leaning": "垂直优先；P-02 验收按决策分支",
+      "status": "open"
+    },
+    {
+      "id": "D5",
+      "question": "项目管理深度与 GitLab/GitHub 原生能力分工",
+      "leaning": "04 对标已论证：云驭做 AI-agent 原生协作+人机混合审批+效能/成本报表；通用 BPM 与组合级资源管理不做；E-04/E-07 够用就好，E-05 叠加 agent 成本归集差异化",
+      "status": "open"
+    },
+    {
+      "id": "D6",
+      "question": "Genie-Teamwork 方案取舍",
+      "leaning": "用户已拍板（2026-11-22）：附件缺失，先跳过；待文件补充后按 02 §4 框架评审",
+      "status": "resolved-skip"
+    }
+  ],
+  "items": [
+    {
+      "id": "C-01",
+      "title": "跨进程单写者治理（HTTP 与 stdio MCP 双 Manager 写同一 .yunyu）",
+      "priority": "P0",
+      "phase": "A",
+      "perspective": "architect/core",
+      "ownerRole": "core",
+      "status": "open",
+      "dependsOn": [
+        "Q-01"
+      ],
+      "evidence": [
+        "bin/yunyu-mcp.mjs:10-14",
+        "src/server/app.mjs:80-88",
+        "src/core/storage.mjs:94"
+      ],
+      "acceptance": "双进程并发集成测试（Q-01 测试床）无 meta 覆盖与事件交错；或 stdio MCP 默认改为 HTTP 代理模式并记录 ADR"
+    },
+    {
+      "id": "C-02",
+      "title": "崩溃恢复加固：seq 水位校验、坏行隔离区、损坏蜂群修复 CLI",
+      "priority": "P0",
+      "phase": "A",
+      "perspective": "core/sre",
+      "ownerRole": "core",
+      "status": "open",
+      "dependsOn": [
+        "Q-01"
+      ],
+      "evidence": [
+        "src/core/storage.mjs:110-114",
+        "src/core/orchestrator.mjs:1172"
+      ],
+      "acceptance": "kill -9 中途写入注入测试（Q-01 测试床）通过；坏行隔离+告警而非静默丢弃；修复 CLI 可恢复损坏蜂群"
+    },
+    {
+      "id": "C-03",
+      "title": "统一事件投影层，收敛 board/tasks/knowledge/wiki 四处全量重放",
+      "priority": "P1",
+      "phase": "B",
+      "perspective": "architect",
+      "ownerRole": "core",
+      "status": "open",
+      "dependsOn": [
+        "C-02",
+        "Q-01"
+      ],
+      "evidence": [
+        "src/core/board.mjs:73",
+        "src/core/tasks.mjs:82",
+        "src/core/knowledge.mjs:35",
+        "src/core/wiki.mjs:71"
+      ],
+      "acceptance": "新增事件消费者无需自写重放；万级事件重启耗时较 Q-01 记录的基线下降 ≥50%；先于 E-03 完成以避免重放路径双改冲突"
+    },
+    {
+      "id": "C-04",
+      "title": "SSE 可靠性：事件 id + Last-Event-ID 断线补拉 + 写背压",
+      "priority": "P1",
+      "phase": "A",
+      "perspective": "backend/frontend",
+      "ownerRole": "backend",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "src/server/sse.mjs:40-48 帧无 id 且忽略背压",
+        "web/app.js:359-395 重连无补拉"
+      ],
+      "acceptance": "断线重连零丢事件集成测试；慢消费者不拖垮广播；前端重连后增量回补"
+    },
+    {
+      "id": "C-05",
+      "title": "Webhook 异步回调鉴权 + 关联令牌 + 出站 fetch 超时",
+      "priority": "P0",
+      "phase": "A",
+      "perspective": "security/drivers",
+      "ownerRole": "drivers",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "src/drivers/webhook-agent.mjs:48-52 fetch 无超时",
+        "src/drivers/webhook-agent.mjs:62-64 async→alreadyPosted 后回调走自报 author 普通 POST"
+      ],
+      "acceptance": "无签名/无关联令牌回调 401；挂起远端超时释放成员串行链（测试覆盖）；与 S-02 同一身份模型"
+    },
+    {
+      "id": "C-06",
+      "title": "GitLab 镜像失败治理：错误 surfaced + 重试/死信 + 标签原子更新",
+      "priority": "P1",
+      "phase": "A",
+      "perspective": "gitlab",
+      "ownerRole": "gitlab",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "src/core/orchestrator.mjs:254-257 错误仅有监听器时 emit",
+        "src/core/orchestrator.mjs:220-222 tasks 投影 catch{} 吞错",
+        "src/gitlab/sync.mjs:54-61 标签读改写非原子"
+      ],
+      "acceptance": "镜像失败可见+可重放（死信队列）；并发标签更新不互相覆盖（测试）；投影错误不再静默"
+    },
+    {
+      "id": "C-07",
+      "title": "POSIX 进程树清理：killProcessTree 孙进程泄漏",
+      "priority": "P1",
+      "phase": "B",
+      "perspective": "drivers",
+      "ownerRole": "drivers",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "src/drivers/cli-agent.mjs:386-398 POSIX 只杀直接子进程"
+      ],
+      "acceptance": "POSIX 下 kill 后无残留孙进程（进程组/测试验证）；Windows taskkill /T 行为不回退"
+    },
+    {
+      "id": "S-01",
+      "title": "密钥不落盘：driverConfig.apiKey 与 GitLab token 引用化 + 存量迁移",
+      "priority": "P0",
+      "phase": "A",
+      "perspective": "security",
+      "ownerRole": "core",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "src/core/orchestrator.mjs:27-42",
+        "src/core/orchestrator.mjs:419",
+        "src/core/orchestrator.mjs:437-439"
+      ],
+      "acceptance": "meta.json 扫描零明文密钥；persistToken 默认 false；审计器新增落盘密钥检查项"
+    },
+    {
+      "id": "S-02",
+      "title": "发帖 author 绑定认证 principal，禁止冒充任意成员",
+      "priority": "P0",
+      "phase": "A",
+      "perspective": "security",
+      "ownerRole": "backend",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "src/server/routes.mjs:381",
+        "src/server/routes.mjs:35-53"
+      ],
+      "acceptance": "伪造 author 请求返回 403；审计事件携带可信身份；为 E-01 RBAC 预留 principal 模型"
+    },
+    {
+      "id": "S-03",
+      "title": "移除/收敛 ?token= 查询串鉴权",
+      "priority": "P1",
+      "phase": "A",
+      "perspective": "security",
+      "ownerRole": "backend",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "src/server/routes.mjs:47-48"
+      ],
+      "acceptance": "默认拒绝查询串 token（或仅限 SSE 且文档警示）；代理访问日志/浏览器历史无 token 泄露"
+    },
+    {
+      "id": "Q-01",
+      "title": "并发/崩溃注入/万级消息基准测试套件（先行测试床）",
+      "priority": "P0",
+      "phase": "A",
+      "perspective": "qa",
+      "ownerRole": "qa",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "tests/ 勘察：无竞态/崩溃/性能用例"
+      ],
+      "acceptance": "套件纳入 npm test；基准数字记录至 docs/benchmarks/（作为 C-03/E-03 的对比基线）；覆盖双实例写、租约跨进程、中途 kill 恢复"
+    },
+    {
+      "id": "D-01",
+      "title": "重写 docs/ARCHITECTURE.md 至 v0.5.1（以 01 基线为稿）",
+      "priority": "P0",
+      "phase": "A",
+      "perspective": "dx",
+      "ownerRole": "docs",
+      "status": "done",
+      "dependsOn": [],
+      "evidence": [
+        "docs/ARCHITECTURE.md §2.5 仅 5 驱动",
+        "拓扑缺 plugins/channels/world-model/wiki 层"
+      ],
+      "acceptance": "7 驱动、全层拓扑、4 只读角色隔离与代码一致；评审通过",
+      "resolution": "2026-11-22 已交付：docs/ARCHITECTURE.md 依据 01 基线重写至 v0.5.1（7 驱动、全层拓扑、4 只读角色、插件/IM/世界模型层、ADR 摘要与文档分工声明）。"
+    },
+    {
+      "id": "D-02",
+      "title": "文档一致性审计门禁 + 修复 README 版本徽章/30 工具/8 视图漂移",
+      "priority": "P0",
+      "phase": "A",
+      "perspective": "qa/dx",
+      "ownerRole": "docs",
+      "status": "open",
+      "dependsOn": [
+        "D-01"
+      ],
+      "evidence": [
+        "README.md:6,63,115,165",
+        "README.en.md:6,45",
+        "src/core/auditor.mjs:375-389 仅查源码版本字面量"
+      ],
+      "acceptance": "audit 校验版本/工具数/视图数与 constants.mjs、MCP_TOOLS、web tabs 一致；漂移即扣分",
+      "progress": "2026-11-22：README 中英文漂移已全部修复（徽章 0.5.1、37 工具、9 视图，并补 v0.5.1 加固亮点）；剩余审计器文档一致性门禁（src/core/auditor.mjs 扩展）未实施，保持 open。"
+    },
+    {
+      "id": "D-03",
+      "title": "PROTOCOL.md 补 /api/metrics；SECURITY.md 补 v0.5.1 限流/强制鉴权/容器条目",
+      "priority": "P1",
+      "phase": "A",
+      "perspective": "dx",
+      "ownerRole": "docs",
+      "status": "done",
+      "dependsOn": [],
+      "evidence": [
+        "docs/PROTOCOL.md §5",
+        "SECURITY.md",
+        "CHANGELOG.md 0.5.1"
+      ],
+      "acceptance": "与 routes.mjs 及 CHANGELOG 对齐",
+      "resolution": "2026-11-22 已交付：PROTOCOL.md §5 补 GET /api/metrics（含鉴权与限流豁免说明）；SECURITY.md 补 v0.5.1 限流/非回环强制鉴权/metrics/非 root 容器条目。"
+    },
+    {
+      "id": "D-04",
+      "title": "HANDOFF 15 坑点回流 KnowledgeVault，Wiki 决策页自动收录",
+      "priority": "P1",
+      "phase": "A",
+      "perspective": "dx",
+      "ownerRole": "docs",
+      "status": "done",
+      "dependsOn": [],
+      "evidence": [
+        "docs/HANDOFF.md §4",
+        "docs/wiki/decisions-and-pitfalls.md 知识库为空"
+      ],
+      "acceptance": "knowledge_save 写入 15 条 pitfall/adr；npm run wiki 后决策页非空",
+      "resolution": "2026-11-22 已交付：15 条 pitfall 追加式写入 .yunyu/swarms/project-knowledge/events.jsonl；bin/yunyu.mjs cmdWiki 新增 loadRepoKnowledge 接线（按目录扫描 knowledge_add 事件）；npm run wiki 后决策页精选收录 12 条（全量 15 条可检索）；HANDOFF §4 增补「坑点必须入库」流程约定。"
+    },
+    {
+      "id": "D-05",
+      "title": "建立 docs/adr/ 决策记录治理（含 D1–D6 决策门论证）",
+      "priority": "P1",
+      "phase": "C",
+      "perspective": "architect",
+      "ownerRole": "architect",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "01-architecture-baseline.md §9 隐含 ADR"
+      ],
+      "acceptance": "每个架构决策有编号 ADR、状态与论证；D1–D6 拍板结果落 ADR"
+    },
+    {
+      "id": "D-06",
+      "title": "HANDOFF 路线图收敛为指向 backlog.json 的引用",
+      "priority": "P1",
+      "phase": "A",
+      "perspective": "dx",
+      "ownerRole": "docs",
+      "status": "done",
+      "dependsOn": [],
+      "evidence": [
+        "docs/HANDOFF.md:116-122 散文式路线图"
+      ],
+      "acceptance": "HANDOFF 不再手工维护待办状态；backlog.json 为唯一结构化事实源",
+      "resolution": "2026-11-22 已交付：HANDOFF §6 收敛为指向 backlog.json 的唯一事实源引用，保留 X-01/X-02/X-03 历史映射与决策门前提说明。"
+    },
+    {
+      "id": "X-01",
+      "title": "GitHub Issues/PR 双向适配器（复用 GitLab SyncService 抽象）",
+      "priority": "P1",
+      "phase": "A",
+      "perspective": "product",
+      "ownerRole": "backend",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "docs/HANDOFF.md v0.6.0 项 1",
+        "src/gitlab/sync.mjs:23-77"
+      ],
+      "acceptance": "GitHub Mock 集成测试绿；webhook 验签；标签/评论双向同步"
+    },
+    {
+      "id": "X-02",
+      "title": "自动双语译文 Hook + OpenAI 兼容驱动 SSE 流式输出",
+      "priority": "P1",
+      "phase": "A",
+      "perspective": "product/dx",
+      "ownerRole": "drivers",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "docs/HANDOFF.md v0.6.0 项 3"
+      ],
+      "acceptance": "英文帖自动 zh-CN 注解（不篡改原帖）；流式增量可回放"
+    },
+    {
+      "id": "E-01",
+      "title": "人员账号 + RBAC（admin/pm/dev/qa/viewer）+ 审计归因",
+      "priority": "P1",
+      "phase": "B",
+      "perspective": "security/product",
+      "ownerRole": "backend",
+      "status": "open",
+      "dependsOn": [
+        "S-02"
+      ],
+      "evidence": [
+        "src/server/routes.mjs:35-53 单 token",
+        "src/core/constants.mjs:18-30 角色仅 Agent 角色"
+      ],
+      "acceptance": "5 角色权限矩阵测试；全 API 路由鉴权覆盖；操作归因到人"
+    },
+    {
+      "id": "E-02",
+      "title": "OIDC SSO 对接（零依赖 code flow）",
+      "priority": "P1",
+      "phase": "B",
+      "perspective": "security",
+      "ownerRole": "backend",
+      "status": "open",
+      "dependsOn": [
+        "E-01"
+      ],
+      "evidence": [
+        "企业身份体系集成需求",
+        "node:crypto 可验 RS256，零依赖可行"
+      ],
+      "acceptance": "code flow 登录/登出/会话过期 + id_token 签名验证/JWKS 轮换/nonce/state/PKCE 防重放测试全部通过"
+    },
+    {
+      "id": "E-03",
+      "title": "node:sqlite 读索引 + checkpoint 增量重放（JSONL 仍为唯一审计源）",
+      "priority": "P1",
+      "phase": "B",
+      "perspective": "core",
+      "ownerRole": "core",
+      "status": "open",
+      "dependsOn": [
+        "C-03",
+        "D2"
+      ],
+      "evidence": [
+        "src/core/storage.mjs:104-116 全量读",
+        "四处重放",
+        "package.json engines >=22.0.0 需提升"
+      ],
+      "acceptance": "万级消息查询 P95 < 50ms；索引可从 JSONL 全量重建；engines 下限提升至免 flag 版本；同步 API 与 P-01 异步化张力有 ADR 论证；不变量 #2 不破坏"
+    },
+    {
+      "id": "E-04",
+      "title": "里程碑/迭代/优先级/工时/自定义字段（够用就好，不做组合 roadmap/资源调度）",
+      "priority": "P1",
+      "phase": "B",
+      "perspective": "product",
+      "ownerRole": "core",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "src/core/tasks.mjs 现仅 6 态+DAG+Spec",
+        "docs/review/04-enterprise-pm-benchmark.md §3 范围裁定"
+      ],
+      "acceptance": "Issue 模型扩展 + 看板/迭代视图 + 旧数据迁移兼容；自定义字段类型少量（对标 GitLab 仅 4 类型）；明确不做组合级 roadmap 与资源调度"
+    },
+    {
+      "id": "E-05",
+      "title": "报表仪表盘 + 导出（吞吐/周期时间/缺陷逃逸/成本趋势）+ agent token/成本按 Issue/成员归集",
+      "priority": "P1",
+      "phase": "B",
+      "perspective": "product",
+      "ownerRole": "frontend",
+      "status": "open",
+      "dependsOn": [
+        "C-03"
+      ],
+      "evidence": [
+        "事件流已含全量协作数据但无聚合报表",
+        "04 对标：六家平台均无原生 agent 成本度量，为差异化赛道"
+      ],
+      "acceptance": "4 类报表可从事件流纯函数推导；支持 CSV/JSON 导出；agent token/成本按 Issue/成员归集报表（BudgetGovernor 数据复用）"
+    },
+    {
+      "id": "E-06",
+      "title": "人机混合审批流：agent human-gate、多级签核、超时升级、IM 卡片联动（不做通用 BPM）",
+      "priority": "P1",
+      "phase": "B",
+      "perspective": "product",
+      "ownerRole": "core",
+      "status": "open",
+      "dependsOn": [
+        "E-01"
+      ],
+      "evidence": [
+        "现仅单点 human_gate + 看门狗退避",
+        "04 对标：节点级审批为中式企业刚需，通用审批交飞书/钉钉"
+      ],
+      "acceptance": "审批链事件溯源；超时升级与代理测试通过；IM 卡片联动；通用审批表单明确不做"
+    },
+    {
+      "id": "E-07",
+      "title": "通知路由中心：订阅规则、免打扰、摘要",
+      "priority": "P1",
+      "phase": "B",
+      "perspective": "product",
+      "ownerRole": "channels",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "src/channels/ 现偏单向通知"
+      ],
+      "acceptance": "规则引擎测试；6 渠道复用；@我的聚合"
+    },
+    {
+      "id": "P-01",
+      "title": "fs 异步化 + 读路径分页/索引 + 事件循环延迟监控",
+      "priority": "P1",
+      "phase": "B",
+      "perspective": "core",
+      "ownerRole": "core",
+      "status": "open",
+      "dependsOn": [
+        "Q-01"
+      ],
+      "evidence": [
+        "src/core/storage.mjs:94,104 同步 fs"
+      ],
+      "acceptance": "基准对比同步版不劣化；event loop lag 指标入 /api/metrics"
+    },
+    {
+      "id": "P-02",
+      "title": "扩展路径落地（依 D4 决策分支验收）",
+      "priority": "P2",
+      "phase": "C",
+      "perspective": "architect/sre",
+      "ownerRole": "core",
+      "status": "open",
+      "dependsOn": [
+        "C-01",
+        "E-03",
+        "D4"
+      ],
+      "evidence": [
+        "orchestrator.mjs:1144 内存 Map",
+        "sse.mjs:6 内存 Set"
+      ],
+      "acceptance": "D4=垂直：扫描/重放 worker_threads 化 + lag SLO 达标；D4=分片：双节点分片集成测试 + SSE 跨节点广播 + 故障隔离演练"
+    },
+    {
+      "id": "P-03",
+      "title": "备份/快照/DR CLI + Prometheus 文本格式 + RPO/RTO 目标",
+      "priority": "P2",
+      "phase": "C",
+      "perspective": "sre",
+      "ownerRole": "backend",
+      "status": "open",
+      "dependsOn": [
+        "C-02"
+      ],
+      "evidence": [
+        "无备份工具链",
+        "/api/metrics 仅 JSON"
+      ],
+      "acceptance": "快照→恢复演练测试；/metrics 可被 Prometheus 抓取；RPO/RTO 文档化"
+    },
+    {
+      "id": "P-04",
+      "title": "agent-logs 磁盘轮转 + meta.json 写放大治理 + logs 文件权限补齐",
+      "priority": "P1",
+      "phase": "B",
+      "perspective": "core/sre",
+      "ownerRole": "core",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "src/core/storage.mjs:128 内存 500 上限 vs :131-133 磁盘无轮转无 mode",
+        "src/core/orchestrator.mjs:224 每消息全量重写 meta"
+      ],
+      "acceptance": "轮转上限可配且测试覆盖；meta 改节流/增量写（基准验证写放大下降）；agent-logs 目录 0o700/文件 0o600"
+    },
+    {
+      "id": "F-01",
+      "title": "前端状态分片 + 虚拟滚动 + 视图级错误边界",
+      "priority": "P1",
+      "phase": "B",
+      "perspective": "frontend",
+      "ownerRole": "frontend",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "web/lib/state.js:3-60 单一可变全局 state"
+      ],
+      "acceptance": "万级消息滚动无 >200ms 长任务、交互响应 <100ms（CDP 性能断言）；注入单视图错误不拖垮整页；保持零构建"
+    },
+    {
+      "id": "Q-02",
+      "title": "长稳压测门禁：内存增长断言、SSE 满连接、24h 演练",
+      "priority": "P1",
+      "phase": "B",
+      "perspective": "qa",
+      "ownerRole": "qa",
+      "status": "open",
+      "dependsOn": [
+        "Q-01"
+      ],
+      "evidence": [
+        "tests/ 无长稳/内存用例"
+      ],
+      "acceptance": "24h 稳态 RSS 增长 <5% 断言入 CI；SSE 200 满连接无泄漏；报告入 docs/benchmarks/"
+    },
+    {
+      "id": "E-08",
+      "title": "审计 hash 链 + 合规导出 + 留存策略",
+      "priority": "P2",
+      "phase": "C",
+      "perspective": "security",
+      "ownerRole": "core",
+      "status": "open",
+      "dependsOn": [
+        "C-02"
+      ],
+      "evidence": [
+        "追加不可变已具备，无防篡改校验"
+      ],
+      "acceptance": "篡改任一历史事件可被校验发现；合规导出格式文档化"
+    },
+    {
+      "id": "X-03",
+      "title": "多仓库联邦世界模型（Polyrepo World Model）",
+      "priority": "P2",
+      "phase": "C",
+      "perspective": "architect",
+      "ownerRole": "core",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "docs/HANDOFF.md v0.6.0 项 4"
+      ],
+      "acceptance": "≥2 仓接口契约图；跨仓爆炸半径列出下游模块与回归测试集（集成测试判定）"
+    },
+    {
+      "id": "X-04",
+      "title": "Jira/飞书项目/Teambition 适配器评估与 MVP",
+      "priority": "P2",
+      "phase": "D",
+      "perspective": "product",
+      "ownerRole": "backend",
+      "status": "open",
+      "dependsOn": [
+        "X-01"
+      ],
+      "evidence": [
+        "企业多平台并存现实"
+      ],
+      "acceptance": "评估 ADR + 至少 1 个适配器 MVP 集成测试"
+    },
+    {
+      "id": "X-05",
+      "title": "插件市场治理：签名验证、版本锁定、依赖声明",
+      "priority": "P2",
+      "phase": "D",
+      "perspective": "security/dx",
+      "ownerRole": "plugins",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "src/plugins/registry.mjs 零信任授信已具备，无签名/锁版本"
+      ],
+      "acceptance": "未签名插件默认拒绝；版本锁定与升级测试"
+    },
+    {
+      "id": "E-09",
+      "title": "多租户隔离/配额/计费（仅 D1=SaaS 时启动）",
+      "priority": "P2",
+      "phase": "D",
+      "perspective": "architect",
+      "ownerRole": "architect",
+      "status": "deferred",
+      "dependsOn": [
+        "D1",
+        "P-02"
+      ],
+      "evidence": [
+        "HANDOFF.md:112 现行定位非 SaaS"
+      ],
+      "acceptance": "租户隔离渗透测试；配额与计费模型 ADR"
+    },
+    {
+      "id": "F-02",
+      "title": "白标主题 + 无障碍（WCAG AA）",
+      "priority": "P2",
+      "phase": "D",
+      "perspective": "frontend",
+      "ownerRole": "frontend",
+      "status": "open",
+      "dependsOn": [
+        "F-01"
+      ],
+      "evidence": [
+        "现仅暗黑双语主题"
+      ],
+      "acceptance": "对比度/键盘导航 CDP 验收"
+    },
+    {
+      "id": "G-01",
+      "title": "Genie-Teamwork 方案对比整合（用户决定跳过；文件补充后可重启）",
+      "priority": "P1",
+      "phase": "D",
+      "perspective": "architect",
+      "ownerRole": "docs",
+      "status": "deferred",
+      "dependsOn": [],
+      "evidence": [
+        "docs/temp/Genie-Teamwork多智能体协作方案.html.crdownload 95507 字节全 0x00（2026-11-22 多次字节级校验）",
+        "10 条溯源途径全部落空：Chrome/Edge 下载表与浏览历史、全盘文件名搜索（含微信接收目录）、WorkBuddy(.workbuddy) 产物与数据库、Qoder 附件缓存、会话转录与协作消息/文件缓存（全 0 行）、联网搜索均无原文（详见 02-doc-comparison.md §4 排查记录）",
+        "同名消歧：Google 开源 Teamwork 框架为另一事物，不得冒充本附件内容做对比",
+        "用户决定（2026-11-22）：参考文件缺失，先跳过本项；对比框架已在 02-doc-comparison.md §4 预留，文件补充后可直接重启"
+      ],
+      "acceptance": "按 02-doc-comparison.md §4 框架产出对比；可吸收项转化为新 backlog 条目；冲突主张落 ADR"
+    }
+  ]
+}

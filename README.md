@@ -3,19 +3,20 @@
 > **零外部依赖的开源多 Agent 蜂群协同研发、项目世界模型、活文档 Wiki 与 GitLab 双向联动平台** — 让异构 AI 编程智能体（Claude Code / Codex CLI / Gemini CLI / DeepSeek / 通义千问 / OpenAI / Ollama / Dify / LangGraph / MCP 客户端 / 个人数字分身）与人类工程师在同一共享看板上安全、透明、全中文地完成软件项目的调研、规划、并发开发、验证与发布管理。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-38e8ff.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-0.5.0-60a5fa.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-0.5.1-60a5fa.svg)](CHANGELOG.md)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.0.0-34d399.svg)](package.json)
 [![Zero Dependencies](https://img.shields.io/badge/Dependencies-0%20runtime%20deps-fbbf24.svg)](package.json)
 [![GitLab](https://img.shields.io/badge/GitLab-API%20v4%20%2B%20Webhooks-fb923c.svg)](docs/GITLAB_INTEGRATION.md)
 [![MCP](https://img.shields.io/badge/MCP-JSON--RPC%202.0%20(37%20tools)-a78bfa.svg)](docs/PROTOCOL.md)
 [![Plugins](https://img.shields.io/badge/Plugins-Agent%20Plugin%20%2B%20TeamAI-f472b6.svg)](docs/PLUGINS_AND_TEAMAI.md)
 
-[English README](README.en.md) · [更新日志 CHANGELOG](CHANGELOG.md) · [插件与 TeamAI 指南](docs/PLUGINS_AND_TEAMAI.md) · [项目活文档 Wiki](docs/wiki/README.md) · [行业对标白皮书](docs/BENCHMARK_AND_INTEGRATION.md) · [系统架构](docs/ARCHITECTURE.md) · [Agent 与 MCP 协议](docs/PROTOCOL.md) · [GitLab 集成指南](docs/GITLAB_INTEGRATION.md) · [安全策略](SECURITY.md) · [工程契约 AGENTS.md](AGENTS.md)
+[English README](README.en.md) · [更新日志 CHANGELOG](CHANGELOG.md) · [插件与 TeamAI 指南](docs/PLUGINS_AND_TEAMAI.md) · [项目活文档 Wiki](docs/wiki/README.md) · [行业对标白皮书](docs/BENCHMARK_AND_INTEGRATION.md) · [系统架构](docs/ARCHITECTURE.md) · [架构评审与企业级路线图](docs/review/README.md) · [Agent 与 MCP 协议](docs/PROTOCOL.md) · [GitLab 集成指南](docs/GITLAB_INTEGRATION.md) · [安全策略](SECURITY.md) · [工程契约 AGENTS.md](AGENTS.md)
 
 ---
 
-## 核心能力全景（v0.5.0）
+## 核心能力全景（v0.5.1）
 
+- **生产就绪安全加固（v0.5.1 新增）**：按来源 IP 限流（默认 1200 次/分钟，`/api/health` 豁免）、非回环绑定强制 `YUNYU_API_TOKEN` 鉴权（否则拒绝启动）、`GET /api/metrics` 巡检指标端点、看门狗人工门禁指数退避降噪，以及 Dockerfile（node:22-alpine 非 root + HEALTHCHECK）与 docker-compose 容器化交付。
 - **Agent 插件生态、TeamAI 跨端连接器同步、外部 MCP 客户端、渐进式技能与生命周期 Hook（v0.5.0 新增）**：
   - **双规范插件注册中心**：原生兼容 **Agent Plugin Open Standard（`plugin.json`）** 与腾讯开源 **`Tencent/teamai-cli` Git 资产仓库（`teamai.yaml` / `mcp/mcp.yaml` / `hooks/hooks.yaml`）**；内置 `yunyu-engineering-pack` 与 `teamai-sync-pack` 两大官方包，支持本地/远端 Git/在线内联插件与零信任启停授信。
   - **8 大异构 Agent 连接器雷达与跨端同步**：自动探测 Claude Code、Codex CLI、Gemini CLI、Cursor IDE、OpenCode、Antigravity、CodeBuddy / TeamAI、MCP 网关状态，一键将 Skills、Rules、Commands、Hooks、MCP Servers **非破坏性深度合并**至 `.claude/`、`.mcp.json`、`.codex/`、`.cursor/rules/*.mdc`、`.gemini/settings.json`、`opencode.json`、`.agent/`、`.codebuddy/`。
@@ -60,7 +61,7 @@ cd yunyu-teamwork
 #    自动创建沙盒 Git 仓库 + Git Worktree 隔离 + 本地 GitLab v4 模拟
 #    + 6 角色协同交付（架构冻结 → 并行开发 → QA 拦截返工 → MR 合并）+ 世界模型 & Wiki
 npm run demo
-# 浏览器打开 http://127.0.0.1:4310 即可体验全部 8 大实时视图！
+# 浏览器打开 http://127.0.0.1:4310 即可体验全部 9 大实时视图！
 
 # 3. 对当前或目标仓库执行一键全仓架构/安全审计、导出活文档 Wiki & 探测跨端 Agent 连接器
 npm run audit
@@ -112,7 +113,7 @@ curl -X POST http://127.0.0.1:4310/api/swarms/main-workspace/members \
   }'
 ```
 
-更多接入协议（30 个 MCP 工具、DeepSeek / 通义千问 / Ollama / Dify / n8n / 6 渠道 IM 数字分身）请参阅 [docs/PROTOCOL.md](docs/PROTOCOL.md) 与 [examples/](examples/)。
+更多接入协议（37 个 MCP 工具、DeepSeek / 通义千问 / Ollama / Dify / n8n / 6 渠道 IM 数字分身）请参阅 [docs/PROTOCOL.md](docs/PROTOCOL.md) 与 [examples/](examples/)。
 
 ---
 
@@ -162,7 +163,7 @@ yunyu-teamwork/
 ```bash
 npm run check      # 全仓 JS/MJS 语法直检（node --check）
 npm test           # 单元 + 安全加固回归 + 真实 Git Worktree + GitLab Mock + MCP + SSE 全量集成测试
-npm run qa:ui      # 无头 Chrome CDP 1440×900 桌面 & 390×844 手机全 8 视图零报错视觉验收
+npm run qa:ui      # 无头 Chrome CDP 1440×900 桌面 & 390×844 手机全 9 视图零报错视觉验收
 npm run audit      # 全仓多视角工程与安全自动审计（目标 100/100）
 npm run verify     # 一键完整发布门禁（check + test + qa:ui + audit）
 ```

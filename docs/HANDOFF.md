@@ -71,7 +71,7 @@ node bin/yunyu.mjs doctor
 
 ## 4. 已踩坑与关键防护记录（后续改动严禁回退！）
 
-以下 15 个真实工程与安全坑点均已有自动化回归测试或实战演练覆盖：
+以下 15 个真实工程与安全坑点均已有自动化回归测试或实战演练覆盖。**流程约定（D-04）**：新增坑点必须同步以 `category: pitfall` 写入 KnowledgeVault（`knowledge_save` MCP 工具或 `POST /api/swarms/:id/knowledge`），`npm run wiki` 会自动收录至 [wiki/decisions-and-pitfalls.md](wiki/decisions-and-pitfalls.md)（精选展示最新 12 条，全量可检索）；本节 15 条已于 2026-11-22 回流至 `.yunyu/swarms/project-knowledge/events.jsonl`。
 
 1. **Windows `git status --porcelain` 首空格截断与中文八进制转义**（`src/core/worktree.mjs`）：必须传递 `-c core.quotePath=false status --porcelain -uall` 且 `trimLeading: false`。
 2. **Windows 8.3 短路径与 `worktreeRoot` 边界校验**（`src/core/worktree.mjs`）：`git worktree list` 可能输出 `ADMINI~1`，必须通过 `fs.realpathSync.native` 规范化后再验证子目录边界。
@@ -113,9 +113,10 @@ curl -s -H "Authorization: Bearer $YUNYU_API_TOKEN" http://127.0.0.1:4310/api/me
 
 ---
 
-## 6. 下一阶段（v0.6.0）演进路线图
+## 6. 下一阶段演进路线图（唯一事实源：backlog.json）
 
-1. **GitHub Issues / PRs 双向联动适配器**：复用与 GitLab 相同的 `SyncService` 抽象，原生支持 GitHub Webhooks 与 PR 审查流。
-2. ~~**容器化与一键自托管部署**~~：✅ 已于 v0.5.1 交付（Dockerfile + compose + 健康探针 + 限流 + 强制鉴权 + metrics）。
-3. **自动双语译文 Hook 与 LLM 流式思考推送**：支持为英文外部 Agent 或 CI 日志自动调用轻量模型写入 `annotateTranslation(seq, 'zh-CN', ...)`，并支持 `OpenAICompatibleDriver` SSE 增量流式输出。
-4. **多仓库联邦世界模型（Polyrepo World Model）**：支持跨微服务仓库绘制接口契约与跨仓变更爆炸半径。
+> 📋 **本节不再手工维护待办状态**（待办 D-06 已收敛）。全部演进规划以 [docs/review/backlog.json](review/backlog.json) 为**唯一结构化事实源**：39 项待办，含 ID / 优先级 / 证据 / 验收标准 / 依赖 / 所有权角色，可直接派生 Qoder Issue 供 Agent 认领；状态变更只更新 backlog.json 与 [03 路线图](review/03-enterprise-roadmap.md) 表格。
+
+- **讨论入口**：[docs/review/README.md](review/README.md)（架构基线 01 · 文档对比 02 · 多视角批判与四阶段路线图 03 · 企业 PM 对标 04）。
+- **历史 v0.6.0 散文路线图映射**（仅供追溯）：GitHub 双向联动 → `X-01`；自动双语译文 Hook 与 LLM 流式推送 → `X-02`；多仓库联邦世界模型 → `X-03`；容器化与一键自托管部署 → ✅ 已于 v0.5.1 交付（见 §5）。
+- **实施前提**：P0 信任缺口优先（阶段 A），战略方向待决策门 D1–D5 拍板（见 03 §5）；D6/G-01（Genie 附件对比）经用户决定跳过，文件补充后可重启。

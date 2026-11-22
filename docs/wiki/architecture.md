@@ -1,4 +1,4 @@
-<!-- yunyu-wiki slug=architecture version=1 category=architecture updatedAt=2026-11-22T03:38:48.762Z -->
+<!-- yunyu-wiki slug=architecture version=1 category=architecture updatedAt=2026-11-22T11:07:02.552Z -->
 # 系统架构与模块依赖拓扑
 
 ## 1. 域间运行时依赖关系
@@ -7,8 +7,8 @@
 graph LR
   dom_core["core"] -->|9| dom_drivers["drivers"]
   dom_server["server"] -->|8| dom_core["core"]
+  dom_bin["bin"] -->|7| dom_core["core"]
   dom_drivers["drivers"] -->|7| dom_core["core"]
-  dom_bin["bin"] -->|6| dom_core["core"]
   dom_plugins["plugins"] -->|5| dom_core["core"]
   dom_gitlab["gitlab"] -->|4| dom_core["core"]
   dom_core["core"] -->|3| dom_gitlab["gitlab"]
@@ -38,7 +38,7 @@ graph LR
 | `src/drivers/base.mjs` | `drivers` | 11 | 2 | 567 | — |
 | `src/server/app.mjs` | `server` | 11 | 9 | 229 | — |
 | `src/core/ownership.mjs` | `core` | 10 | 1 | 249 | — |
-| `src/core/storage.mjs` | `core` | 9 | 0 | 174 | — |
+| `src/core/storage.mjs` | `core` | 10 | 0 | 174 | — |
 | `src/core/research.mjs` | `core` | 8 | 1 | 452 | — |
 | `web/i18n.js` | `web` | 8 | 0 | 201 | — |
 | `web/lib/state.js` | `web` | 8 | 0 | 157 | — |

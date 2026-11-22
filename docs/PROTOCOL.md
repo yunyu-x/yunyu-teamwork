@@ -110,7 +110,8 @@
 
 | 方法与路径 | 说明 |
 | :--- | :--- |
-| `GET /api/health` | 健康检查、可用驱动列表与团队模板 |
+| `GET /api/health` | 健康检查、可用驱动列表与团队模板（限流豁免，供探针使用） |
+| `GET /api/metrics` | 监控指标（v0.5.1）：请求总量、限流计数、蜂群数、SSE 连接数与 RSS 内存，供 Prometheus 文本适配或巡检脚本消费（需 Bearer 鉴权） |
 | `GET/POST /api/swarms` | 列出或创建蜂群 |
 | `GET /api/swarms/:id` | 获取蜂群完整状态、成员名册、所有权契约与工作树 |
 | `GET/POST /api/swarms/:id/messages` | 查询（`since`/`limit`/`channel`/`kind`/`search`）或发帖 |

@@ -1,4 +1,4 @@
-<!-- yunyu-wiki slug=module-demo version=1 category=module updatedAt=2026-11-22T03:38:48.762Z -->
+<!-- yunyu-wiki slug=module-demo version=1 category=module updatedAt=2026-11-22T11:07:02.553Z -->
 # 模块域详解：演示与编排场景 (src/demo)
 
 - 文件数：1 · 总行数：546 LOC · 导出符号：2

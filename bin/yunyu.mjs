@@ -5,6 +5,7 @@ import path from 'node:path';
 import { ProjectAuditor } from '../src/core/auditor.mjs';
 import { APP_VERSION, DEFAULT_CONFIG } from '../src/core/constants.mjs';
 import { ProjectWiki } from '../src/core/wiki.mjs';
+import { SwarmStorage } from '../src/core/storage.mjs';
 import { ProjectWorldModel } from '../src/core/world-model.mjs';
 import { isGitRepo } from '../src/core/worktree.mjs';
 import { runShowcaseDemo } from '../src/demo/showcase-scenario.mjs';
@@ -280,6 +281,25 @@ function cmdAudit(args) {
   }
 }
 
+function loadRepoKnowledge(targetDir) {
+  const swarmsRoot = path.join(targetDir, '.yunyu', 'swarms');
+  if (!fs.existsSync(swarmsRoot)) return null;
+  const storage = new SwarmStorage({ dataDir: path.join(targetDir, '.yunyu') });
+  const byId = new Map();
+  // 知识沉淀蜂群可能只有 events.jsonl 而无 meta.json，故按目录扫描而非 listSwarmIds
+  for (const dirent of fs.readdirSync(swarmsRoot, { withFileTypes: true })) {
+    if (!dirent.isDirectory()) continue;
+    for (const ev of storage.readEvents(dirent.name)) {
+      if (ev.type === 'knowledge_add' && ev.entry?.id && !byId.has(ev.entry.id)) {
+        byId.set(ev.entry.id, ev.entry);
+      }
+    }
+  }
+  if (byId.size === 0) return null;
+  const entries = [...byId.values()].sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  return { listEntries: () => entries.map((e) => structuredClone(e)) };
+}
+
 function cmdWiki(args) {
   const targetDir = path.resolve(String(args.dir || args.repo || process.cwd()));
   const outDir = path.resolve(String(args.out || path.join(targetDir, 'docs', 'wiki')));
@@ -289,7 +309,8 @@ function cmdWiki(args) {
   const wiki = new ProjectWiki({ swarmId: 'cli-export' });
   wiki.generateFromWorldModel(snap, {
     projectName: snap.packageInfo?.name || path.basename(targetDir),
-    auditReport
+    auditReport,
+    knowledge: loadRepoKnowledge(targetDir)
   });
   const exported = wiki.exportToDir(outDir);
   console.log(`\n📚 已基于项目世界模型导出活文档 Wiki 档案：`);
