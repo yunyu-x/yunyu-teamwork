@@ -19,6 +19,7 @@ export class StallMonitor {
     this.lastActivityAt = Date.now();
     this.lastAlertSeq = -1;
     this.alertCount = 0;
+    this.humanGateStreak = 0;
   }
 
   start() {
@@ -66,15 +67,25 @@ export class StallMonitor {
     const head = this.swarm.board.head;
     if (head === this.lastAlertSeq) return null;
 
-    this.lastAlertSeq = head;
-    this.alertCount++;
-
     const errored = activeWorkers.filter((m) => m.state === MEMBER_STATES.ERROR);
     const waitingHuman = activeWorkers.filter((m) => m.state === MEMBER_STATES.WAITING_HUMAN);
     const lastMsg = this.swarm.board.getMessage(head);
 
+    let backoffMs = this.stallThresholdMs;
+    if (waitingHuman.length > 0) {
+      // 人工门禁等待属预期行为：提醒间隔指数退避（30s→60→120→240→480 封顶），避免刷屏
+      backoffMs = this.stallThresholdMs * 2 ** Math.min(this.humanGateStreak, 4);
+      if (idleMs < backoffMs) return null;
+    } else {
+      this.humanGateStreak = 0;
+    }
+
+    this.lastAlertSeq = head;
+    this.alertCount++;
+
     let text;
     if (waitingHuman.length > 0) {
+      this.humanGateStreak++;
       const names = waitingHuman.map((m) => `@${m.name}`).join(' ');
       text = `${names} [人工门禁提醒] 蜂群已在 #${head} 等待人工确认超过 ${Math.round(idleMs / 1000)} 秒，请在看板回复或点击批准以继续推进。`;
     } else if (errored.length > 0) {
@@ -92,7 +103,7 @@ export class StallMonitor {
       text,
       channel: 'main',
       kind: MESSAGE_KINDS.SYSTEM,
-      metadata: { stallAlert: true, stalledAtSeq: head, idleMs }
+      metadata: { stallAlert: true, stalledAtSeq: head, idleMs, backoffMs }
     });
     this.lastAlertSeq = alertMsg.seq;
     return alertMsg;

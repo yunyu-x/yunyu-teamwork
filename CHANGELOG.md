@@ -4,6 +4,21 @@
 
 ---
 
+## [0.5.1] - 2026-11-22
+
+### 商用生产就绪加固（P0/P1/P2）：API 限流 + 非回环强制鉴权 + 监控指标 + 看门狗降噪 + 容器化交付
+
+基于 v0.5.0 多 Agent 协同系统化测试、6 项并发压测与 IPC 商用相机 12 轮全流程演练的商用评估结论，针对生产就绪缺口完成加固，**全程保持零外部 npm 运行时依赖**。
+
+- **P0 · API 限流保护（`src/server/rate-limit.mjs`）**：新增零依赖 `RateLimiter` 按来源 IP 固定窗口限流（默认 1200 次/分钟，`YUNYU_RATE_LIMIT_RPM` / `YUNYU_RATE_LIMIT_WINDOW_MS` 可调，0 = 关闭），超限返回 `429 + Retry-After`；`/api/health` 豁免以保障健康探针；内置过期桶清扫防内存膨胀。
+- **P0 · 非回环绑定强制鉴权守卫（`assertSecureBinding`）**：监听 `0.0.0.0` 等非回环地址而未设置 `YUNYU_API_TOKEN` 时启动即拒绝，杜绝明文开放；仅限可信内网演练可用 `YUNYU_ALLOW_INSECURE=true` 显式豁免。
+- **P1 · 监控指标端点（`GET /api/metrics`）**：返回请求总量、限流计数、限流器状态、蜂群数、SSE 连接数与 RSS 内存，供巡检脚本与 Prometheus 文本适配消费。
+- **P1 · 看门狗人工门禁提醒指数退避（`src/core/monitor.mjs`）**：`waiting_human` 门禁提醒按 30s→60→120→240→480s 指数退避（16 倍封顶），门禁解除即复位，消除长时间人工审批场景的告警刷屏。
+- **P2 · 容器化一键自托管交付**：新增 `Dockerfile`（node:22-alpine、非 root `node` 用户、`HEALTHCHECK` 探针）、`docker-compose.yml`（强制 `YUNYU_API_TOKEN`、回环端口映射、`.yunyu` 数据卷、`restart: unless-stopped`）与 `.dockerignore`。
+- **文档与回归**：`docs/HANDOFF.md` 增补踩坑记录 #13–15（Windows curl 中文 GBK 乱码、review 态依赖验收解锁、`kind=defect` 自动派生缺陷单）与「生产部署指引」章节；新增 `tests/unit/server-hardening.test.mjs` 与 `tests/unit/monitor-backoff.test.mjs` 全覆盖新行为；版本升级至 `0.5.1` 并刷新活文档 Wiki。
+
+---
+
 ## [0.5.0] - 2026-11-22
 
 ### Agent 插件生态 + TeamAI 跨端连接器同步 + 外部 MCP 客户端 + 渐进式技能/规则 + 生命周期 Hook 治理台

@@ -1,4 +1,4 @@
-<!-- yunyu-wiki slug=api-and-protocols version=1 category=protocol updatedAt=2026-11-21T18:01:56.155Z -->
+<!-- yunyu-wiki slug=api-and-protocols version=1 category=protocol updatedAt=2026-11-22T03:38:48.762Z -->
 # 核心模块导出与协议接口清单
 
 ## 1. Node.js 内置能力依赖

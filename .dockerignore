@@ -1,0 +1,9 @@
+.git
+.yunyu
+node_modules
+docs
+tests
+scripts
+coverage
+*.log
+.gitlab-ci.yml

@@ -1,4 +1,4 @@
-<!-- yunyu-wiki slug=architecture version=1 category=architecture updatedAt=2026-11-21T18:01:56.155Z -->
+<!-- yunyu-wiki slug=architecture version=1 category=architecture updatedAt=2026-11-22T03:38:48.762Z -->
 # 系统架构与模块依赖拓扑
 
 ## 1. 域间运行时依赖关系
@@ -32,12 +32,12 @@ graph LR
 | 文件路径 | 所属域 | 被引用 (Fan-In) | 引用外部 (Fan-Out) | 行数 | 所有权 |
 | :--- | :--- | ---: | ---: | ---: | :--- |
 | `src/core/constants.mjs` | `core` | 39 | 0 | 128 | — |
-| `src/core/orchestrator.mjs` | `core` | 15 | 16 | 1290 | — |
+| `src/core/orchestrator.mjs` | `core` | 16 | 16 | 1290 | — |
 | `src/demo/showcase-scenario.mjs` | `demo` | 12 | 2 | 546 | — |
 | `src/drivers/registry.mjs` | `drivers` | 12 | 7 | 47 | — |
 | `src/drivers/base.mjs` | `drivers` | 11 | 2 | 567 | — |
+| `src/server/app.mjs` | `server` | 11 | 9 | 229 | — |
 | `src/core/ownership.mjs` | `core` | 10 | 1 | 249 | — |
-| `src/server/app.mjs` | `server` | 10 | 8 | 209 | — |
 | `src/core/storage.mjs` | `core` | 9 | 0 | 174 | — |
 | `src/core/research.mjs` | `core` | 8 | 1 | 452 | — |
 | `web/i18n.js` | `web` | 8 | 0 | 201 | — |

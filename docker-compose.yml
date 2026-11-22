@@ -1,0 +1,18 @@
+# 云驭协同单机生产部署（内网自托管）
+# 启动前必须设置强随机 Token：export YUNYU_API_TOKEN=$(openssl rand -hex 32)
+# TLS 由前置反向代理（Nginx/Caddy）终结，本服务仅绑定宿主回环地址
+services:
+  yunyu:
+    build: .
+    image: yunyu-teamwork:0.5.1
+    ports:
+      - "127.0.0.1:4310:4310"
+    environment:
+      YUNYU_API_TOKEN: ${YUNYU_API_TOKEN:?必须设置 YUNYU_API_TOKEN（非回环绑定强制鉴权）}
+      YUNYU_RATE_LIMIT_RPM: ${YUNYU_RATE_LIMIT_RPM:-1200}
+    volumes:
+      - yunyu-data:/app/.yunyu
+    restart: unless-stopped
+
+volumes:
+  yunyu-data:

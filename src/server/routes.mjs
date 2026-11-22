@@ -119,7 +119,9 @@ export async function handleApiRoute({
   twinsStore = null,
   webhookSecret = '',
   apiToken = '',
-  allowCustomCli = false
+  allowCustomCli = false,
+  stats = null,
+  rateLimiter = null
 }) {
   const method = req.method;
   const pathname = url.pathname;
@@ -160,6 +162,21 @@ export async function handleApiRoute({
       channelTypes: listChannelTypes(),
       pluginCount: manager.plugins ? manager.plugins.registry.listPlugins().filter((p) => p.enabled).length : 0,
       connectorCount: manager.plugins ? manager.plugins.connectors.listConnectors().length : 0
+    }, req);
+    return true;
+  }
+
+  if (method === 'GET' && pathname === '/api/metrics') {
+    sendJson(res, 200, {
+      ok: true,
+      version: APP_VERSION,
+      uptimeSec: Math.round(process.uptime()),
+      requestsTotal: stats?.requestsTotal ?? 0,
+      rateLimitedTotal: stats?.rateLimitedTotal ?? 0,
+      rateLimit: rateLimiter ? rateLimiter.stats() : null,
+      swarmCount: manager.listSwarms().length,
+      sseClients: sse && sse.clients ? sse.clients.size : 0,
+      memoryRssMb: Math.round(process.memoryUsage().rss / 1024 / 1024)
     }, req);
     return true;
   }

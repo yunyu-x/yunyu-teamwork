@@ -1,4 +1,4 @@
-<!-- yunyu-wiki slug=workflows-and-ops version=1 category=operations updatedAt=2026-11-21T18:01:56.155Z -->
+<!-- yunyu-wiki slug=workflows-and-ops version=1 category=operations updatedAt=2026-11-22T03:38:48.762Z -->
 # 工程规范、测试矩阵与质量门禁
 ## 1. 自动化测试清单
 - `tests/integration/digital-twin-channels.test.mjs` (218 行 · 覆盖依赖 5 个源码模块)
@@ -17,11 +17,13 @@
 - `tests/unit/drivers.test.mjs` (89 行 · 覆盖依赖 2 个源码模块)
 - `tests/unit/git-agents-workflow.test.mjs` (140 行 · 覆盖依赖 8 个源码模块)
 - `tests/unit/gitlab-webhook.test.mjs` (48 行 · 覆盖依赖 1 个源码模块)
+- `tests/unit/monitor-backoff.test.mjs` (72 行 · 覆盖依赖 1 个源码模块)
 - `tests/unit/monitor.test.mjs` (44 行 · 覆盖依赖 1 个源码模块)
 - `tests/unit/ownership.test.mjs` (43 行 · 覆盖依赖 1 个源码模块)
 - `tests/unit/plugins-ecosystem.test.mjs` (443 行 · 覆盖依赖 1 个源码模块)
 - `tests/unit/qoder-issues-dag.test.mjs` (130 行 · 覆盖依赖 3 个源码模块)
 - `tests/unit/security-hardening.test.mjs` (295 行 · 覆盖依赖 15 个源码模块)
+- `tests/unit/server-hardening.test.mjs` (94 行 · 覆盖依赖 2 个源码模块)
 - `tests/unit/worktree.test.mjs` (55 行 · 覆盖依赖 4 个源码模块)
 - `tests/unit/world-model-wiki-audit.test.mjs` (169 行 · 覆盖依赖 5 个源码模块)
 ## 2. 协作交付标准流程

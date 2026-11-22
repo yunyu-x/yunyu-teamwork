@@ -7,7 +7,7 @@
 ## 1. 项目基础信息快照
 
 - **仓库地址**：`https://github.com/yunyu-x/yunyu-teamwork.git`（主干分支：`main`）
-- **当前版本**：`v0.5.0`
+- **当前版本**：`v0.5.1`
 - **运行环境要求**：Node.js `>= 22.0.0`、Git、Chromium/Chrome/Edge（仅 `npm run qa:ui` 需要）
 - **核心设计原则**：**零外部 npm 运行时依赖**（纯 Node 22 ESM 内置模块 + 零构建原生 ES2022 模块化 Web UI），开箱适配企业内网、离线环境与自托管 GitLab。
 
@@ -71,7 +71,7 @@ node bin/yunyu.mjs doctor
 
 ## 4. 已踩坑与关键防护记录（后续改动严禁回退！）
 
-以下 9 个真实工程与安全坑点均已有自动化回归测试覆盖：
+以下 15 个真实工程与安全坑点均已有自动化回归测试或实战演练覆盖：
 
 1. **Windows `git status --porcelain` 首空格截断与中文八进制转义**（`src/core/worktree.mjs`）：必须传递 `-c core.quotePath=false status --porcelain -uall` 且 `trimLeading: false`。
 2. **Windows 8.3 短路径与 `worktreeRoot` 边界校验**（`src/core/worktree.mjs`）：`git worktree list` 可能输出 `ADMINI~1`，必须通过 `fs.realpathSync.native` 规范化后再验证子目录边界。
@@ -85,12 +85,37 @@ node bin/yunyu.mjs doctor
 10. **外部 MCP `capabilities` 按需枚举防 12s 超时**（`src/plugins/mcp-client.mjs`）：部分极简 MCP Server 仅声明 `capabilities: { tools: {} }` 且不响应 `resources/list`，连接时必须先检查 `caps.resources` 再发请求，同时监听进程 `exitCode !== null` 快速失败。
 11. **插件零信任自声明隔离与符号链接防护**（`src/plugins/registry.mjs`, `src/server/plugin-routes.mjs`）：工作区自动扫描或 HTTP 安装的插件必须忽略 `manifest.trusted`（强制默认 `trusted: false`），HTTP `/toggle` 授予信任必须受 `allowCustomCli` 门禁保护，且 `loadPluginDirectory` 必须通过 `lstatSync` + `realpathSync` 拒绝任何符号链接逃逸。
 12. **跨端连接器非破坏性 JSON 深度合并**（`src/plugins/connectors.mjs`）：向 `.mcp.json`、`.gemini/settings.json`、`opencode.json` 同步 MCP 配置时必须先读取既有 JSON 并仅合并 `mcpServers`/`mcp` 键，严禁覆写用户的 `theme`/`model`/`provider` 等既有配置。
+13. **Windows Git Bash `curl` 中文请求体 GBK 乱码**（IPC 实战演练 seq 9）：向留言板 POST 中文 JSON 必须使用 `node fetch`（UTF-8）而非 shell `curl`；追加式留言板会永久保留乱码历史，纠错只能追加新帖澄清，严禁篡改旧帖。
+14. **review 态 Issue 依赖不自动解锁**（`src/core/tasks.mjs`）：上游 Issue 进入 `review` 态后依赖它的下游仍被 409 阻塞，必须由协调者 `accept`（→`done`）后下游才可认领；派单契约中应显式声明「验收解锁」步骤。
+15. **`kind=defect` 消息自动派生缺陷单**（`src/core/tasks.mjs` `onBoardMessage`）：普通讨论消息误标 `kind: 'defect'` 会自动创建缺陷 Issue；发帖时仅在真实缺陷场景使用该 kind，误派生单需走 `cancelled` 清理。
 
 ---
 
-## 5. 下一阶段（v0.6.0）演进路线图
+## 5. 生产部署指引（v0.5.1 安全加固）
+
+v0.5.1 针对商用评估发现的 P0/P1/P2 缺口完成加固，全部保持零外部运行时依赖：
+
+- **API 限流**（`src/server/rate-limit.mjs`）：按来源 IP 固定窗口限流，默认 1200 次/分钟，超限返回 `429 + Retry-After`；`/api/health` 豁免（供探针）。环境变量 `YUNYU_RATE_LIMIT_RPM`（0 = 关闭）与 `YUNYU_RATE_LIMIT_WINDOW_MS` 可调。
+- **非回环绑定强制鉴权**：监听 `0.0.0.0` 等非回环地址时必须设置 `YUNYU_API_TOKEN`（Bearer），否则启动即拒绝；仅限可信内网演练可用 `YUNYU_ALLOW_INSECURE=true` 显式豁免。
+- **监控指标端点**：`GET /api/metrics` 返回请求总量、限流计数、蜂群数、SSE 连接数与 RSS 内存，供 Prometheus 文本适配或巡检脚本消费。
+- **看门狗人工门禁降噪**（`src/core/monitor.mjs`）：`waiting_human` 提醒按 30s→60→120→240→480s 指数退避（16 倍封顶），门禁解除即复位。
+- **容器化交付**：`Dockerfile`（node:22-alpine、非 root、HEALTHCHECK）+ `docker-compose.yml`（强制 Token、回环端口映射、数据卷）。
+
+```bash
+# 容器化单机部署（内网自托管）
+export YUNYU_API_TOKEN=$(openssl rand -hex 32)
+docker compose up -d --build
+curl -s http://127.0.0.1:4310/api/health
+curl -s -H "Authorization: Bearer $YUNYU_API_TOKEN" http://127.0.0.1:4310/api/metrics
+```
+
+生产注意：TLS 由前置反向代理（Nginx/Caddy）终结；定期备份 `.yunyu/` 数据卷（全部 JSONL 追加式审计资产）；本系统定位为**内网单节点团队协作**，非多租户 SaaS。
+
+---
+
+## 6. 下一阶段（v0.6.0）演进路线图
 
 1. **GitHub Issues / PRs 双向联动适配器**：复用与 GitLab 相同的 `SyncService` 抽象，原生支持 GitHub Webhooks 与 PR 审查流。
-2. **容器化与一键自托管部署**：提供最小化 `Dockerfile`、`docker-compose.yml` 与健康检查探针，支持企业内网秒级拉起。
+2. ~~**容器化与一键自托管部署**~~：✅ 已于 v0.5.1 交付（Dockerfile + compose + 健康探针 + 限流 + 强制鉴权 + metrics）。
 3. **自动双语译文 Hook 与 LLM 流式思考推送**：支持为英文外部 Agent 或 CI 日志自动调用轻量模型写入 `annotateTranslation(seq, 'zh-CN', ...)`，并支持 `OpenAICompatibleDriver` SSE 增量流式输出。
 4. **多仓库联邦世界模型（Polyrepo World Model）**：支持跨微服务仓库绘制接口契约与跨仓变更爆炸半径。

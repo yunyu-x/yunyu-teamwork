@@ -9,6 +9,7 @@ import { TwinsStore } from '../core/twins-store.mjs';
 import { createDefaultDriverRegistry } from '../drivers/registry.mjs';
 import { YunyuMcpServer } from '../mcp/server.mjs';
 import { handleApiRoute, sendJson } from './routes.mjs';
+import { RateLimiter, assertSecureBinding } from './rate-limit.mjs';
 import { SseHub } from './sse.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -56,6 +57,7 @@ export class YunyuServer {
     webhookSecret = process.env.GITLAB_WEBHOOK_SECRET || '',
     apiToken = process.env.YUNYU_API_TOKEN || '',
     allowCustomCli = process.env.YUNYU_ALLOW_CUSTOM_CLI === 'true',
+    rateLimit = null,
     manager = null,
     driverRegistry = null,
     channelBridge = null,
@@ -67,6 +69,11 @@ export class YunyuServer {
     this.webhookSecret = webhookSecret;
     this.apiToken = apiToken;
     this.allowCustomCli = Boolean(allowCustomCli);
+    this.rateLimiter = new RateLimiter({
+      windowMs: rateLimit?.windowMs ?? (Number(process.env.YUNYU_RATE_LIMIT_WINDOW_MS) || 60_000),
+      max: rateLimit?.max ?? (process.env.YUNYU_RATE_LIMIT_RPM !== undefined ? Number(process.env.YUNYU_RATE_LIMIT_RPM) : 1200)
+    });
+    this.stats = { requestsTotal: 0, rateLimitedTotal: 0, startedAt: Date.now() };
     this.channelBridge = channelBridge || new ChannelBridge();
     this.twinsStore = twinsStore || new TwinsStore({ dataDir, inMemory });
     this.driverRegistry = driverRegistry || createDefaultDriverRegistry({ channelBridge: this.channelBridge });
@@ -90,11 +97,22 @@ export class YunyuServer {
   }
 
   async start() {
+    assertSecureBinding(this.host, this.apiToken, process.env.YUNYU_ALLOW_INSECURE === 'true');
     const handler = async (req, res) => {
       try {
         const url = new URL(req.url, `http://${req.headers.host || `${this.host}:${this.port}`}`);
 
         if (url.pathname.startsWith('/api/')) {
+          this.stats.requestsTotal++;
+          if (url.pathname !== '/api/health') {
+            const verdict = this.rateLimiter.check(req.socket.remoteAddress);
+            if (!verdict.allowed) {
+              this.stats.rateLimitedTotal++;
+              res.setHeader('Retry-After', String(Math.ceil(verdict.retryAfterMs / 1000)));
+              sendJson(res, 429, { error: '请求过于频繁，已触发限流保护，请稍后重试' }, req);
+              return;
+            }
+          }
           const handled = await handleApiRoute({
             req,
             res,
@@ -106,7 +124,9 @@ export class YunyuServer {
             twinsStore: this.twinsStore,
             webhookSecret: this.webhookSecret,
             apiToken: this.apiToken,
-            allowCustomCli: this.allowCustomCli
+            allowCustomCli: this.allowCustomCli,
+            stats: this.stats,
+            rateLimiter: this.rateLimiter
           });
           if (!handled && !res.headersSent) {
             sendJson(res, 404, { error: `API 路由不存在: ${req.method} ${url.pathname}` }, req);

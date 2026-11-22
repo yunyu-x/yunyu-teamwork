@@ -1,6 +1,6 @@
 {
   "name": "yunyu-teamwork",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "云驭协同（Yunyu Teamwork）— 开源多 Agent 蜂群协同研发、Agent 插件与 TeamAI 跨端生态、项目世界模型、活文档 Wiki 与 GitLab 双向联动平台（零外部依赖、异构 Agent、Git Worktree 隔离、Qoder Issue 中心、MCP 双向网关）",
   "type": "module",
   "license": "MIT",
