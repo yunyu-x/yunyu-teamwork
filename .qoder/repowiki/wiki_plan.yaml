@@ -1,0 +1,58 @@
+version: 1
+repowiki:
+  template: architecture
+  notes:
+    - text: 项目当前版本 v0.5.1，Node.js >= 22.0.0，零外部 npm 运行时依赖（package.json 无 dependencies/devDependencies）；文档与页面默认使用简体中文，技术标识（路径、命令、JSON 键名、Git SHA）保留英文。
+    - text: 六条硬不变量以 AGENTS.md 为第一手契约：零依赖、追加式不可变 JSONL、作者与只读审查角色隔离（verifier/qa/reviewer/researcher 禁改 src/ 与 web/）、并发作者 Git Worktree 隔离、事件驱动 @mention 零轮询唤醒、默认全中文输出。不要提出违反这些不变量的建议。
+    - text: 模块所有权按 AGENTS.md 表格划分：src/core（architect/core）、src/drivers、src/channels、src/gitlab、src/plugins 与 plugins/、src/mcp 与 bin/yunyu-mcp.mjs（protocol）、src/server 与 bin/yunyu.mjs（backend）、web/（frontend）、tests/ 与 scripts/（qa）、docs/ 与 examples/（release/docs）。
+    - text: docs/wiki/ 是产品自身「活文档 Wiki」功能（yunyu wiki 命令）自动导出的产物，不是知识中心 Repo Wiki；不要手工改写该目录，引用时注明其自动生成属性。
+    - text: 2026-11-22 多模型闭环验收轮事实：scripts/manual-test-run.mjs 自动化实测 pass=9/fail=0/skip=2（第 9/10 关因无 GitLab 凭据与 docker CLI 环境性跳过）；架构=DeepSeek-V4-Pro、设计=GLM-5.3、开发=Kimi-K3.1-Pro、测试=Step-5-Preview 四角色四模型只读评审，结论均为「有条件通过」；全套记录在 docs/acceptance/（run-record.json、orchestration.json、verdicts/、closure-report.md）。
+    - text: 演进待办唯一结构化事实源是 docs/review/backlog.json（66 项，含 acceptanceRound 元数据块与决策门 D1–D5）；不要另行发明待办清单。企业级发布门槛：D1 定位拍板 + C-01/C-02/C-05/S-01/S-02 五项代码 P0 + UX-01/UX-02 + DEV-01/DEV-02。
+    - text: 已核实的 API 契约细节：Issue 初始状态为 backlog（非 planning），六态为 backlog/ready/in_progress/review/done/cancelled；不存在 GET 单任务路由（用 GET /tasks 列表）；YunyuServer 关闭方法是 close()（非 stop()）；MCP 服务端 37 工具 + 3 类资源，8 连接器、10 事件 Hook、15 类 SSE 事件。
+    - text: .yunyu/ 是运行时 JSONL 追加数据目录（gitignored），不是源码；docs/temp/ 为临时附件目录，不作为知识来源。
+  documents:
+    - title: 项目总览与整体架构
+      parent: ""
+      goal: 说明产品定位（零依赖多 Agent 蜂群协同研发与项目管理平台）、全层拓扑（server/core/drivers/plugins/channels/gitlab/mcp/web）、六条硬不变量与模块所有权边界、ADR-1..6 关键决策。
+      hints: AGENTS.md、docs/ARCHITECTURE.md、README.md、package.json、bin/yunyu.mjs
+    - title: 蜂群核心引擎
+      parent: ""
+      goal: 解析 src/core 的调度与治理机制：不可变留言板与 @mention 唤醒、六态 Issue + DAG 依赖 + Spec 冻结与验收、预算熔断、知识库、看门狗退避、所有权守卫、Worktree 隔离、世界模型爆炸半径、活文档 Wiki、自动审计器、JSONL 存储与重启恢复。
+      hints: src/core/orchestrator.mjs、board.mjs、tasks.mjs、budget.mjs、knowledge.mjs、monitor.mjs、ownership.mjs、worktree.mjs、storage.mjs、world-model.mjs、wiki.mjs、auditor.mjs
+    - title: 异构 Agent 驱动与 IM 渠道
+      parent: ""
+      goal: 说明 7 大驱动（OpenAI 兼容、CLI Agent 流式会话复用、Research Synthesizer、Digital Twin、Webhook、Human、Simulated）的统一接口与只读角色工具守卫，以及 6 渠道 IM 双向桥接与验签防重放。
+      hints: src/drivers/、src/channels/
+    - title: 插件生态与跨端连接器
+      parent: ""
+      goal: 解析双规范插件注册（plugin.json 与 teamai.yaml）、8 大跨端连接器非破坏性同步、外部 MCP 客户端管理、渐进式 SKILL.md/规则/命令运行时、10 事件生命周期 Hook 引擎与零信任授信门禁、内置官方插件包。
+      hints: src/plugins/、plugins/yunyu-engineering-pack/、plugins/teamai-sync-pack/
+    - title: GitLab 双向联动
+      parent: ""
+      goal: 说明 GitLab REST v4 客户端、Webhook 验签路由、标签/评论双向同步、Issue 镜像与本地 GitLab Mock 服务器的全链路演练能力。
+      hints: src/gitlab/
+    - title: HTTP API、SSE 与 MCP 协议
+      parent: ""
+      goal: 解析零依赖 HTTP REST 路由与插件专用路由、SSE 实时事件流（15 类事件、200 连接上限）、限流与非回环强制鉴权、/api/metrics 监控端点、MCP JSON-RPC 2.0 服务端 37 工具与 stdio/HTTP 双传输、CLI 命令全集。
+      hints: src/server/、src/mcp/、bin/yunyu.mjs、bin/yunyu-mcp.mjs、docs/PROTOCOL.md、docs/SECURITY.md
+    - title: Web 协同看板
+      parent: ""
+      goal: 说明原生暗黑双语 9 视图模块化看板（留言板/Issue 看板/知识库/世界模型/插件/图谱/成员/GitLab/契约）、i18n 机制与已知失效面（UX-01）、SSE 订阅与输入态保护、图谱时间轴回放、响应式布局。
+      hints: web/app.js、web/i18n.js、web/views/、web/world-wiki.js、web/graph.js、web/lib/、web/styles/
+    - title: 测试体系与质量门禁
+      parent: ""
+      goal: 说明 check/test/qa:ui/audit/verify 五级门禁、46 个单元与集成用例的覆盖映射、10 阶段自动化实测脚本（沙盒 Git 仓库 + 进程内临时服务器、零 API Key）的设计与已知断言缺口（DEV-03/DEV-04）。
+      hints: tests/、scripts/manual-test-run.mjs、scripts/、package.json
+    - title: 验收档案与多模型评审
+      parent: ""
+      goal: 归档 2026-11-22 自动化实测 + 四角色四模型闭环验收的全过程：实测三轮迭代与最终结果、编排方式（create_chat_session supervise）、四份 verdict 的核心结论与跨角色交叉印证、27 条新待办的去重整合、企业级发布门槛。
+      hints: docs/acceptance/run-record.json、docs/acceptance/orchestration.json、docs/acceptance/verdicts/、docs/acceptance/closure-report.md
+    - title: 演进规划与决策门
+      parent: ""
+      goal: 说明企业级项目管理平台演进路线：backlog.json 66 项待办的系列划分（C/S/P/E/Q/F/D/X/G/V/UX/DEV/T）、决策门 D1–D5 的问题与倾向、四阶段路线图、企业 PM 对标结论与差异化定位（AI-agent 原生协作 + 人机混合审批 + 效能成本报表）。
+      hints: docs/review/backlog.json、docs/review/README.md、docs/review/03-enterprise-roadmap.md、docs/review/04-enterprise-pm-benchmark.md、docs/HANDOFF.md
+knowledgecard:
+  notes:
+    - text: 模块划分严格遵循 AGENTS.md 所有权表：core、drivers、channels、gitlab、plugins（含 plugins/ 内置包）、mcp（含 bin/yunyu-mcp.mjs）、server（含 bin/yunyu.mjs）、web、tests/scripts、docs/examples；不要按文件数量自行重新切分。
+    - text: 项目版本 v0.5.1，零外部 npm 运行时依赖，Node >= 22；六条硬不变量见 AGENTS.md，知识卡中的规范约定必须与之一致（尤其只读角色禁改 src/ 与 web/、追加式 JSONL 不可篡改）。
+    - text: 待办与演进事实唯一来源是 docs/review/backlog.json（66 项）；验收事实来源是 docs/acceptance/（2026-11-22 四模型评审均「有条件通过」）。docs/wiki/ 为产品自动导出活文档，.yunyu/ 为运行时数据，均不作为模块源码知识来源。

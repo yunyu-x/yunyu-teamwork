@@ -1,0 +1,595 @@
+{
+  "schema": "yunyu-acceptance-run/v1",
+  "startedAt": "2026-11-22T14:00:15.410Z",
+  "finishedAt": "2026-11-22T14:00:32.206Z",
+  "version": "0.5.1",
+  "platform": "win32/x64 node v22.16.0",
+  "summary": {
+    "pass": 9,
+    "fail": 0,
+    "skip": 2
+  },
+  "records": [
+    {
+      "stage": "0",
+      "name": "doctor 环境自检",
+      "status": "pass",
+      "evidence": {
+        "node": "v22.16.0",
+        "git": "git version 2.47.0.windows.2",
+        "cliAgents": {
+          "claude": "2.1.37 (Claude Code)",
+          "codex": "codex-cli 0.144.6",
+          "gemini": "未安装"
+        }
+      },
+      "details": {
+        "durationMs": 506
+      },
+      "at": "2026-11-22T14:00:16.053Z"
+    },
+    {
+      "stage": "1",
+      "name": "demo --once 离线全链路冒烟（真实 Worktree + GitLab Mock + 世界模型）",
+      "status": "pass",
+      "evidence": {
+        "exitCode": 0,
+        "outputTail": "   🌳 真实沙盒 Git 仓库：              C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\yunyu-demo-repo-mGO674 |    📨 已生成留言板记录：               13 条（含架构冻结 → Worktree 并行开发 → QA 拦截返工 → MR 合并） |  | 提示：按 Ctrl+C 停止演示服务。"
+      },
+      "details": {
+        "durationMs": 10163
+      },
+      "at": "2026-11-22T14:00:26.216Z"
+    },
+    {
+      "stage": "2",
+      "name": "serve 启动 + health/metrics/UI 可达",
+      "status": "pass",
+      "evidence": {
+        "url": "http://127.0.0.1:12277",
+        "health": {
+          "ok": true,
+          "name": "yunyu-teamwork",
+          "version": "0.5.1",
+          "node": "v22.16.0",
+          "uptimeSec": 11,
+          "swarmCount": 0,
+          "drivers": [
+            {
+              "id": "openai-compatible",
+              "description": "通用 OpenAI 协议兼容大模型驱动（支持 DeepSeek / 通义千问 / OpenAI / OpenRouter / Ollama）"
+            },
+            {
+              "id": "cli-agent",
+              "description": "外部 CLI 编程智能体驱动（支持 Claude Code / Codex CLI / Gemini CLI 实时流式日志与会话复用）"
+            },
+            {
+              "id": "research-synthesizer",
+              "description": "信息搜集与整合智能体驱动（跨源检索仓库/网页/留言板、去重整合引用简报并沉淀至共享知识库）"
+            },
+            {
+              "id": "digital-twin",
+              "description": "个人数字分身驱动（支持人设/知识定制、混合托管审批与飞书/企微/钉钉/Telegram/Slack/Webhook 双向 IM 接入）"
+            },
+            {
+              "id": "webhook",
+              "description": "远程 HTTP Webhook 智能体驱动（支持 LangGraph / Dify / n8n / 自定义微服务）"
+            },
+            {
+              "id": "human",
+              "description": "人类工程师/项目经理接入（在 Web 看板或 GitLab 评论区接收 @ 提醒并审批门禁）"
+            },
+            {
+              "id": "simulated",
+              "description": "内置确定性演练与测试驱动（零 API Key 即可跑通完整 Git Worktree + GitLab 协同交付）"
+            }
+          ],
+          "templates": [
+            {
+              "id": "gitlab-fullstack",
+              "name": "GitLab 全栈研发协同蜂群",
+              "description": "适用于基于 GitLab 仓库的需求拆解、前后端并发开发（独立 Worktree 隔离）、独立 QA 验收与 MR 发布全链路。",
+              "memberCount": 6,
+              "channels": [
+                "backend",
+                "frontend",
+                "qa"
+              ]
+            },
+            {
+              "id": "heterogeneous-cli",
+              "name": "异构多模型 CLI 混编团队（Claude + Codex + Gemini）",
+              "description": "将 Claude Code、OpenAI Codex CLI、Gemini CLI、DeepSeek/Ollama 与人类工程师接入同一共享看板并发协作。",
+              "memberCount": 4,
+              "channels": [
+                "design",
+                "dev"
+              ]
+            },
+            {
+              "id": "gitlab-code-review",
+              "name": "GitLab MR 多视角联合审查团队",
+              "description": "收到 GitLab Merge Request Webhook 后自动并行触发安全审计、性能评审与测试覆盖率验证。",
+              "memberCount": 3,
+              "channels": [
+                "review"
+              ]
+            },
+            {
+              "id": "git-dev-lifecycle",
+              "name": "Git 标准研发交付蜂群（开发 → 提交 → 复核 → 验证）",
+              "description": "覆盖基础 Git 工程全链路：隔离分支编码开发、规范提交与安全推送、只读 Diff 代码复核与独立自动化测试验证。",
+              "memberCount": 5,
+              "channels": [
+                "dev",
+                "review",
+                "qa"
+              ]
+            },
+            {
+              "id": "research-to-delivery",
+              "name": "全链路情报调研 → Spec 规划 → 并发研发 → 验收交付团队",
+              "description": "融合 Qoder Spec 驱动与多源信息整合：先由信息搜集与整合 Agent 调研仓库/网页并沉淀共享知识库，再冻结 Spec 拆分子 Issue 并行研发与验收。",
+              "memberCount": 5,
+              "channels": [
+                "research",
+                "dev",
+                "qa"
+              ]
+            }
+          ],
+          "agentPresets": [
+            {
+              "id": "git-developer",
+              "label": "Git 开发 Agent",
+              "nameSuggestion": "dev-author",
+              "role": "author",
+              "driver": "cli-agent",
+              "workspace": "share",
+              "owns": [
+                "src/**"
+              ],
+              "mustNotTouch": [
+                "tests/**"
+              ],
+              "channels": [
+                "main",
+                "dev"
+              ],
+              "brief": "在独立 Git Worktree 分支完成业务编码与单元自测，提交规范 Commit 后通知 @reviewer 与 @verifier。"
+            },
+            {
+              "id": "git-committer",
+              "label": "Git 提交/推送 Agent",
+              "nameSuggestion": "git-committer",
+              "role": "committer",
+              "driver": "openai-compatible",
+              "workspace": "inherit",
+              "owns": [
+                "CHANGELOG.md",
+                "docs/**"
+              ],
+              "mustNotTouch": [
+                "src/**",
+                "web/**"
+              ],
+              "channels": [
+                "main",
+                "dev"
+              ],
+              "brief": "负责审计变更文件、执行规范化 Conventional Commit 提交、受控推送非受保护工作分支并维护变更记录。"
+            },
+            {
+              "id": "git-reviewer",
+              "label": "Git 代码复核 Agent",
+              "nameSuggestion": "code-reviewer",
+              "role": "reviewer",
+              "driver": "openai-compatible",
+              "workspace": "inherit",
+              "owns": [
+                "docs/reviews/**"
+              ],
+              "mustNotTouch": [
+                "src/**",
+                "web/**"
+              ],
+              "channels": [
+                "main",
+                "review"
+              ],
+              "brief": "只读复核隔离分支 Git Diff 与文件所有权合规性，重点检查边界漏洞、并发风险与规范一致性，严禁直接修改业务源码。"
+            },
+            {
+              "id": "git-verifier",
+              "label": "独立验证/QA Agent",
+              "nameSuggestion": "qa-verifier",
+              "role": "verifier",
+              "driver": "cli-agent",
+              "workspace": "inherit",
+              "owns": [
+                "tests/**"
+              ],
+              "mustNotTouch": [
+                "src/**",
+                "web/**"
+              ],
+              "channels": [
+                "main",
+                "qa"
+              ],
+              "brief": "严禁修改 src/ 与 web/ 源码。负责编写回归测试并运行验证门禁，发现缺陷立刻通过 @author 开具结构化缺陷单。"
+            },
+            {
+              "id": "release-publisher",
+              "label": "发布/MR Agent",
+              "nameSuggestion": "release-bot",
+              "role": "release",
+              "driver": "openai-compatible",
+              "workspace": "inherit",
+              "owns": [
+                "CHANGELOG.md",
+                "README.md",
+                ".gitlab-ci.yml"
+              ],
+              "mustNotTouch": [
+                "src/**"
+              ],
+              "channels": [
+                "main"
+              ],
+              "brief": "在复核与验证双绿灯后创建或更新 GitLab Merge Request、核对 CI 流水线状态并整理发布说明。"
+            },
+            {
+              "id": "personal-twin",
+              "label": "个人数字分身 (Digital Twin)",
+              "nameSuggestion": "my-twin",
+              "role": "digital_twin",
+              "driver": "digital-twin",
+              "workspace": "inherit",
+              "owns": [
+                "docs/**"
+              ],
+              "mustNotTouch": [
+                "src/**"
+              ],
+              "channels": [
+                "main"
+              ],
+              "brief": "作为归属人的个人数字分身参与协同：常规咨询按本人风格自动回复并同步 IM，涉及审批、合并或发布时立即通过绑定的 IM/机器人请示本人确认。"
+            },
+            {
+              "id": "info-synthesizer",
+              "label": "信息搜集与整合 Agent",
+              "nameSuggestion": "researcher",
+              "role": "researcher",
+              "driver": "research-synthesizer",
+              "workspace": "inherit",
+              "owns": [
+                "docs/research/**"
+              ],
+              "mustNotTouch": [
+                "src/**",
+                "web/**"
+              ],
+              "channels": [
+                "main",
+                "research"
+              ],
+              "brief": "专职跨源信息搜集与整合（只读禁改源码）：检索本地仓库、抓取参考网页、汇聚看板与 GitLab 历史，输出带来源引用编号的中文结构化简报并沉淀至共享知识库。"
+            }
+          ],
+          "channelTypes": [
+            {
+              "id": "feishu",
+              "name": "飞书 / Lark 机器人",
+              "description": "支持飞书群自定义机器人 Webhook（HMAC-SHA256 签名）与飞书事件订阅入站回调。",
+              "fields": [
+                {
+                  "key": "webhookUrl",
+                  "label": "飞书机器人 Webhook URL",
+                  "placeholder": "https://open.feishu.cn/open-apis/bot/v2/hook/..."
+                },
+                {
+                  "key": "secret",
+                  "label": "签名密钥 (可选)",
+                  "type": "password",
+                  "placeholder": "飞书安全设置中的签名校验密钥"
+                },
+                {
+                  "key": "inboundToken",
+                  "label": "事件订阅 Verification Token (可选)",
+                  "type": "password",
+                  "placeholder": "用于入站回调校验"
+                }
+              ]
+            },
+            {
+              "id": "wecom",
+              "name": "企业微信机器人",
+              "description": "支持企业微信群机器人 Markdown/文本推送与企业自建应用/桥接回调接入。",
+              "fields": [
+                {
+                  "key": "webhookUrl",
+                  "label": "企业微信机器人 Webhook URL",
+                  "placeholder": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=..."
+                },
+                {
+                  "key": "inboundToken",
+                  "label": "入站校验 Token (可选)",
+                  "type": "password",
+                  "placeholder": "X-Yunyu-Token / body.token"
+                }
+              ]
+            },
+            {
+              "id": "dingtalk",
+              "name": "钉钉机器人",
+              "description": "支持钉钉群机器人自动 HMAC-SHA256 加签 Markdown 推送与 Outgoing Webhook 回调。",
+              "fields": [
+                {
+                  "key": "webhookUrl",
+                  "label": "钉钉机器人 Webhook URL",
+                  "placeholder": "https://oapi.dingtalk.com/robot/send?access_token=..."
+                },
+                {
+                  "key": "secret",
+                  "label": "加签密钥 SEC... (可选)",
+                  "type": "password",
+                  "placeholder": "SEC..."
+                },
+                {
+                  "key": "inboundToken",
+                  "label": "Outgoing 回调 Token (可选)",
+                  "type": "password",
+                  "placeholder": "钉钉机器人回调 token"
+                }
+              ]
+            },
+            {
+              "id": "telegram",
+              "name": "Telegram Bot",
+              "description": "直接对接 Telegram Bot API sendMessage 与 Telegram Webhook Secret Token 回调。",
+              "fields": [
+                {
+                  "key": "botToken",
+                  "label": "Bot Token",
+                  "type": "password",
+                  "placeholder": "123456:ABC-DEF..."
+                },
+                {
+                  "key": "chatId",
+                  "label": "Chat ID",
+                  "placeholder": "个人或群组 Chat ID"
+                },
+                {
+                  "key": "apiBaseUrl",
+                  "label": "API Base URL (可选代理)",
+                  "placeholder": "https://api.telegram.org"
+                },
+                {
+                  "key": "inboundToken",
+                  "label": "Webhook Secret Token (可选)",
+                  "type": "password",
+                  "placeholder": "X-Telegram-Bot-Api-Secret-Token"
+                }
+              ]
+            },
+            {
+              "id": "slack",
+              "name": "Slack / Discord Webhook",
+              "description": "支持 Slack Incoming Webhook / Discord 兼容推送及 Slack Events API HMAC-SHA256 验签。",
+              "fields": [
+                {
+                  "key": "webhookUrl",
+                  "label": "Webhook URL",
+                  "placeholder": "https://hooks.slack.com/services/..."
+                },
+                {
+                  "key": "secret",
+                  "label": "Slack Signing Secret (可选)",
+                  "type": "password",
+                  "placeholder": "用于 X-Slack-Signature 验签"
+                }
+              ]
+            },
+            {
+              "id": "generic-webhook",
+              "name": "通用 IM / 机器人 / HTTP Bridge（QQ OneBot / Matrix / 自建 IM）",
+              "description": "标准 HMAC-SHA256 签名 JSON 双向通道，可零成本接入任何企业内网 IM、QQ 机器人或自动化工作流。",
+              "fields": [
+                {
+                  "key": "webhookUrl",
+                  "label": "出站回调 URL",
+                  "placeholder": "http://127.0.0.1:8080/im-hook"
+                },
+                {
+                  "key": "secret",
+                  "label": "HMAC-SHA256 签名密钥 (可选)",
+                  "type": "password",
+                  "placeholder": "用于 X-Yunyu-Signature 双向验签"
+                },
+                {
+                  "key": "inboundToken",
+                  "label": "或 Bearer/Token 校验值 (可选)",
+                  "type": "password",
+                  "placeholder": "X-Yunyu-Token"
+                }
+              ]
+            }
+          ],
+          "pluginCount": 2,
+          "connectorCount": 8
+        },
+        "metricsKeys": [
+          "ok",
+          "version",
+          "uptimeSec",
+          "requestsTotal",
+          "rateLimitedTotal",
+          "rateLimit",
+          "swarmCount",
+          "sseClients",
+          "memoryRssMb"
+        ],
+        "uiBytes": 16117
+      },
+      "details": {
+        "durationMs": 45
+      },
+      "at": "2026-11-22T14:00:26.262Z"
+    },
+    {
+      "stage": "3",
+      "name": "创建蜂群 + 人类成员发帖 + SSE 实时流",
+      "status": "pass",
+      "evidence": {
+        "swarmId": "acceptance",
+        "postSeq": 2,
+        "sseFirstFrame": "event: connected",
+        "boardCount": 2
+      },
+      "details": {
+        "durationMs": 314
+      },
+      "at": "2026-11-22T14:00:26.576Z"
+    },
+    {
+      "stage": "4",
+      "name": "simulated 成员招募 + @mention 事件唤醒 + 隔离 Worktree",
+      "status": "pass",
+      "evidence": {
+        "triggerSeq": 5,
+        "replySeq": 6,
+        "replyExcerpt": "@coordinator 收到 #5：已在独立工作区完成对应模块实现并自测通过（成员 `sim-worker`，工作区模式 `share`）。",
+        "worktreeCount": 2,
+        "worktreeSample": {
+          "member": "pm",
+          "branch": "main"
+        }
+      },
+      "details": {
+        "durationMs": 985
+      },
+      "at": "2026-11-22T14:00:27.562Z"
+    },
+    {
+      "stage": "5",
+      "name": "Issue 六态流转 + DAG 依赖 409 + 验收解锁 + 预算熔断",
+      "status": "pass",
+      "evidence": {
+        "lifecycle": [
+          "backlog",
+          "ready",
+          "in_progress",
+          "review",
+          "done"
+        ],
+        "expectLifecycle": [
+          "backlog",
+          "ready",
+          "in_progress",
+          "review",
+          "done"
+        ],
+        "depBlocked409": 409,
+        "downstreamUnlocked": true,
+        "budgetStatus": "exceeded",
+        "breakerBlockedWake": true,
+        "systemAlertSeq": 8
+      },
+      "details": {
+        "durationMs": 3284
+      },
+      "at": "2026-11-22T14:00:30.846Z"
+    },
+    {
+      "stage": "6",
+      "name": "知识库 pitfall 写入 + 检索 + JSONL 追加持久化",
+      "status": "pass",
+      "evidence": {
+        "entryId": "kb-fca07d",
+        "searchHits": 1,
+        "jsonlLines": 23,
+        "appendOnlyPersisted": true
+      },
+      "details": {
+        "durationMs": 9
+      },
+      "at": "2026-11-22T14:00:30.855Z"
+    },
+    {
+      "stage": "7",
+      "name": "世界模型刷新 + 爆炸半径模拟 + Wiki 生成 + 全仓审计",
+      "status": "pass",
+      "evidence": {
+        "worldFiles": null,
+        "impactKeys": [
+          "targetPaths",
+          "missingTargets",
+          "directDependents",
+          "transitiveImpacted",
+          "impactedTests",
+          "affectedDomains",
+          "notifiedOwners",
+          "invariantWarnings",
+          "totalImpactedFiles",
+          "riskLevel"
+        ],
+        "wikiPages": 6,
+        "auditScore": 90
+      },
+      "details": {
+        "durationMs": 138
+      },
+      "at": "2026-11-22T14:00:30.993Z"
+    },
+    {
+      "stage": "8",
+      "name": "插件清单 + 连接器探测 + claude-code dry-run 同步（沙盒非破坏）",
+      "status": "pass",
+      "evidence": {
+        "pluginCount": 2,
+        "builtinPacks": [
+          "teamai-sync-pack",
+          "yunyu-engineering-pack"
+        ],
+        "connectorCount": 8,
+        "syncDryRun": true,
+        "syncKeys": [
+          "harnessId",
+          "harnessName",
+          "targetDir",
+          "dryRun",
+          "plannedFiles",
+          "writtenFiles",
+          "counts"
+        ],
+        "noFileWritten": true
+      },
+      "details": {
+        "durationMs": 1199
+      },
+      "at": "2026-11-22T14:00:32.192Z"
+    },
+    {
+      "stage": "9",
+      "name": "真实 GitLab 双向联动",
+      "status": "skip",
+      "evidence": "环境未配置 GITLAB_BASE_URL/GITLAB_TOKEN/GITLAB_PROJECT_ID；第 1 关 demo 已覆盖本地 GitLab Mock 全链路",
+      "details": {
+        "gitlabConfigured": false
+      },
+      "at": "2026-11-22T14:00:32.193Z"
+    },
+    {
+      "stage": "10",
+      "name": "Docker 容器化部署",
+      "status": "skip",
+      "evidence": "本机 docker CLI 不可用；Dockerfile/compose 静态资产已随 v0.5.1 交付并通过审计",
+      "details": {
+        "dockerAvailable": false
+      },
+      "at": "2026-11-22T14:00:32.195Z"
+    }
+  ]
+}

@@ -1,0 +1,78 @@
+{
+  "schema": "yunyu-acceptance-orchestration/v1",
+  "createdAt": "2026-11-22T14:04:18Z",
+  "orchestrator": {
+    "role": "coordinator",
+    "model": "qmodel_latest (Qwen4-Max)",
+    "note": "主控仅做统筹与汇总，四个验收角色分别使用不同模型，满足用户「不同 agents 用不同模型」约束"
+  },
+  "workspaceId": "c9cdc8c0-16a1-4163-87c0-2302831cdeaf",
+  "callbackMode": "supervise",
+  "automatedRun": {
+    "script": "scripts/manual-test-run.mjs",
+    "record": "docs/acceptance/run-record.json",
+    "finalResult": { "pass": 9, "fail": 0, "skip": 2 },
+    "runs": [
+      { "n": 1, "result": "pass=8 fail=1", "failureCause": "脚本缺陷：误用不存在的 GET 单任务路由（404）+ server.stop 应为 close" },
+      { "n": 2, "result": "pass=8 fail=1", "failureCause": "脚本缺陷：Issue 初始态误写 planning，产品实际为 backlog" },
+      { "n": 3, "result": "pass=9 fail=0 skip=2", "failureCause": null }
+    ],
+    "skips": [
+      { "stage": 9, "reason": "环境未配置 GITLAB_BASE_URL/GITLAB_TOKEN/GITLAB_PROJECT_ID；GitLab Mock 全链路已在第 1 关覆盖" },
+      { "stage": 10, "reason": "本机 docker CLI 不可用；Dockerfile/compose 静态资产已随 v0.5.1 交付并通过审计" }
+    ]
+  },
+  "sessions": [
+    {
+      "role": "architect",
+      "sessionId": "b06ac0ae-4408-5f49-ad6b-467b35f4e97e",
+      "modelKey": "dmodel",
+      "modelName": "DeepSeek-V4-Pro",
+      "title": "架构验收（DeepSeek-V4-Pro）",
+      "verdictFile": "docs/acceptance/verdicts/architecture.md",
+      "scope": "六不变量落地核查、模块边界与文档一致性、企业级架构缺口分级、实测充分性评审",
+      "result": { "verdict": "有条件通过", "counts": "P0=6 P1=13 P2=6", "completedAt": "2026-11-22T14:14Z" }
+    },
+    {
+      "role": "design",
+      "sessionId": "2e937958-9e79-531c-a718-8d652db659ff",
+      "modelKey": "gmodel",
+      "modelName": "GLM-5.3",
+      "title": "设计验收（GLM-5.3）",
+      "verdictFile": "docs/acceptance/verdicts/design.md",
+      "scope": "9 视图信息架构与双语质量、实时协同体验、错误/空/加载态、企业级 PM 设计缺口",
+      "result": { "verdict": "有条件通过", "counts": "P0=2 P1=5 P2=5", "completedAt": "2026-11-22T14:09Z" }
+    },
+    {
+      "role": "development",
+      "sessionId": "10f65ce2-c3d2-5954-adfb-96eef172f014",
+      "modelKey": "kmodel_latest",
+      "modelName": "Kimi-K3.1-Pro",
+      "title": "开发验收（Kimi-K3.1-Pro）",
+      "verdictFile": "docs/acceptance/verdicts/development.md",
+      "scope": "npm run check、PROTOCOL 与 routes 契约一致性、实测脚本断言充分性、核心代码质量",
+      "result": { "verdict": "有条件通过（限第 0–8 关离线冒烟范围）", "counts": "既有P0=3 新增P1=5 新增P2=3", "completedAt": "2026-11-22T14:17Z" }
+    },
+    {
+      "role": "testing",
+      "sessionId": "d129ffb9-a6cd-5a82-ab53-315c2da3ddcf",
+      "modelKey": "jmodel",
+      "modelName": "Step-5-Preview",
+      "title": "测试验收（Step-5-Preview）",
+      "verdictFile": "docs/acceptance/verdicts/testing.md",
+      "scope": "独立复核 check/test/audit 三大门禁、覆盖缺口与 skip 合理性、P0/P1/P2 风险清单",
+      "result": { "verdict": "有条件通过", "counts": "P0=0 P1=3 P2=7", "gates": "check=0 test=46/46 audit=100/100", "completedAt": "2026-11-22T14:09Z" }
+    }
+  ],
+  "constraints": [
+    "四个角色均为只读评审：禁改 src/、web/、tests/、scripts/；禁 git commit/push",
+    "各角色唯一可写文件为自身 verdicts/<role>.md",
+    "全部输出简体中文（AGENTS.md 不变量 6）",
+    "verdict 统一格式：结论 / 证据 / P0-P2 问题 / backlog 待办草案 / 模型署名"
+  ],
+  "closure": {
+    "overallVerdict": "有条件通过",
+    "report": "docs/acceptance/closure-report.md",
+    "backlogMerged": { "newItems": 27, "total": 66, "dedup": "T-04/T-07/T-08 并入 DEV-03" }
+  }
+}

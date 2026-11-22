@@ -674,6 +674,528 @@
         "用户决定（2026-11-22）：参考文件缺失，先跳过本项；对比框架已在 02-doc-comparison.md §4 预留，文件补充后可直接重启"
       ],
       "acceptance": "按 02-doc-comparison.md §4 框架产出对比；可吸收项转化为新 backlog 条目；冲突主张落 ADR"
+    },
+    {
+      "priority": "P1",
+      "phase": "A",
+      "perspective": "qa",
+      "ownerRole": "qa",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "scripts/manual-test-run.mjs:41-53（沙盒仅 2 文件无 tests/）、:204（worldFiles 取值为 null）",
+        "docs/acceptance/run-record.json stage7 auditScore=90",
+        "docs/acceptance/verdicts/architecture.md §5.3 R-1/R-2"
+      ],
+      "id": "V-01",
+      "title": "实测记录口径修复：stage7 直审真实仓库 + worldFiles 字段断言 + 口径说明",
+      "acceptance": "manual-test-run.mjs stage7 对真实仓库运行 ProjectAuditor 并断言 score===100；refresh 断言 fileCount>0；run-record README 注明沙盒与真实仓库两种审计口径"
+    },
+    {
+      "priority": "P2",
+      "phase": "A",
+      "perspective": "dx",
+      "ownerRole": "docs",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "docs/ARCHITECTURE.md §1 文字未提及反向边",
+        "src/core/orchestrator.mjs:23-25",
+        "docs/review/01-architecture-baseline.md §2 已如实披露"
+      ],
+      "id": "V-02",
+      "title": "ARCHITECTURE.md §1 依赖方向补注 core→gitlab/plugins 反向边说明",
+      "acceptance": "§1 文字与 01 基线 §2 表述一致；D-02 审计器文档一致性门禁落地后自动校验"
+    },
+    {
+      "priority": "P0",
+      "phase": "A",
+      "perspective": "design/ux",
+      "ownerRole": "frontend",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "web/index.html:186-342 模态硬编码",
+        "web/views/kanban.js:286-389",
+        "web/world-wiki.js:268-527",
+        "docs/acceptance/verdicts/design.md D1"
+      ],
+      "id": "UX-01",
+      "title": "i18n 词典补齐至 9 视图全量并统一实现模式（含两个模态表单）",
+      "acceptance": "en-US 模式下遍历 9 视图 + 2 模态 DOM 快照，硬编码中文残留字符串为 0；plugins.js 的 isEn 行内分支迁移至 web/i18n.js 词典；qa:ui 双端无回归"
+    },
+    {
+      "priority": "P0",
+      "phase": "A",
+      "perspective": "design/ux",
+      "ownerRole": "frontend",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "web/views/members.js:117 → web/app.js:827-835 直接 DELETE ?force=true",
+        "web/views/gitlab.js:107 → web/app.js:837-844 直接 merge",
+        "docs/acceptance/verdicts/design.md D2"
+      ],
+      "id": "UX-02",
+      "title": "破坏性操作统一确认对话框（销毁成员 / 合并 MR / 审计建缺陷单）",
+      "acceptance": "销毁成员与合并 MR 必须经确认弹窗（含影响面摘要：worktree 分支名 / MR 标题）才发出请求；Esc/取消路径不发任何 API 调用；回归测试覆盖确认路径与取消路径"
+    },
+    {
+      "priority": "P1",
+      "phase": "B",
+      "perspective": "design/ux",
+      "ownerRole": "frontend",
+      "status": "open",
+      "dependsOn": [
+        "C-04"
+      ],
+      "evidence": [
+        "src/core/orchestrator.mjs:734、:871 已发事件",
+        "web/app.js:361-382 监听清单缺失 human_required",
+        "docs/acceptance/verdicts/design.md D3/D8"
+      ],
+      "id": "UX-03",
+      "title": "订阅 human_required 事件 + 站内通知中心（含预算熔断、审计 FAIL、等待人工聚合）",
+      "acceptance": "数字分身触发人工升级时 3 秒内出现站内通知条目与顶栏红点；预算 status 变为 warning/exceeded 时顶栏胶囊变色且通知中心留痕；通知支持已读/清空；不依赖外部 IM 通道"
+    },
+    {
+      "priority": "P1",
+      "phase": "B",
+      "perspective": "design/ux",
+      "ownerRole": "frontend",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "web/views/contract.js:22-40 预算 UI 信息架构错位",
+        "SSE 无 budget 专属事件",
+        "docs/acceptance/verdicts/design.md D4"
+      ],
+      "id": "UX-04",
+      "title": "预算治理迁出契约视图：顶栏全局预算胶囊 + 预算专属 SSE 事件",
+      "acceptance": "预算胶囊常驻顶栏（ok/warning/exceeded 三态 + 峰值百分比），点击跳转预算治理区块；后端新增 budget 状态变化事件并由前端订阅；契约视图不再承担预算展示职责"
+    },
+    {
+      "priority": "P1",
+      "phase": "A",
+      "perspective": "design/ux",
+      "ownerRole": "frontend",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "web/ 全目录无 localStorage 引用",
+        "web/lib/state.js:4 默认 zh-CN",
+        "docs/acceptance/verdicts/design.md D5"
+      ],
+      "id": "UX-05",
+      "title": "UI 偏好持久化（语言 / 当前 Tab / 筛选器）",
+      "acceptance": "切换至 en-US + graph 视图后刷新页面，语言与 Tab 保持；localStorage 仅存非敏感 UI 键；npm run audit 依赖拓扑零新增"
+    },
+    {
+      "priority": "P1",
+      "phase": "B",
+      "perspective": "design/ux",
+      "ownerRole": "frontend",
+      "status": "open",
+      "dependsOn": [
+        "C-04"
+      ],
+      "evidence": [
+        "web/app.js:54-57 live-pill 仅反映蜂群状态",
+        "EventSource onerror/onopen 未处理",
+        "docs/acceptance/verdicts/design.md D6"
+      ],
+      "id": "UX-06",
+      "title": "SSE 连接状态三态指示与断线重连反馈",
+      "acceptance": "模拟杀掉 /api/events 后 live-pill 转入「重连中」并在恢复时自动回到在线；断线期间产生的事件在重连后补拉不丢失；无重复渲染闪烁"
+    },
+    {
+      "priority": "P2",
+      "phase": "C",
+      "perspective": "design/ux",
+      "ownerRole": "frontend",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "web/views/kanban.js:157-161 仅 ←/→ 单步按钮",
+        "docs/acceptance/verdicts/design.md D9"
+      ],
+      "id": "UX-07",
+      "title": "Issue 看板拖拽换列（桌面 HTML5 DnD + 触屏长按）",
+      "acceptance": "拖拽卡片至目标列松手即调用既有 PUT /tasks/:id 端点；触屏 390x844 可完成拖拽；拖拽与 ←/→ 按钮共存不冲突"
+    },
+    {
+      "priority": "P2",
+      "phase": "C",
+      "perspective": "design/ux",
+      "ownerRole": "frontend",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "DAG 依赖仅抽屉内徽章，无排期可视化",
+        "预算仅蜂群级汇总（web/views/contract.js:31-33）",
+        "docs/review/04-enterprise-pm-benchmark.md",
+        "docs/acceptance/verdicts/design.md D10"
+      ],
+      "id": "UX-08",
+      "title": "企业级 PM 视图：甘特/时间线 + 燃尽图 + 跨蜂群组合仪表盘",
+      "acceptance": "甘特视图渲染 Issue DAG 依赖与时间区间；燃尽图基于六态流转历史统计；组合视图聚合多蜂群 Issue/预算/健康度；纯零依赖 SVG 实现，qa:ui 双端零溢出"
+    },
+    {
+      "priority": "P2",
+      "phase": "B",
+      "perspective": "design/ux",
+      "ownerRole": "frontend",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "web/views/gitlab.js:121-133 Pipelines 无空态",
+        "web/views/board.js:101 空态共用且未 i18n",
+        "docs/acceptance/verdicts/design.md D7/D12"
+      ],
+      "id": "UX-09",
+      "title": "空态/加载态/错误态三态统一规范与首启动引导",
+      "acceptance": "9 视图区分「无数据（含引导动作）」与「筛选无果（含清空）」空态；Pipelines 面板补空态；swarmCount=0 时给出创建蜂群引导流；boot 失败呈全屏错误态而非仅 toast"
+    },
+    {
+      "priority": "P2",
+      "phase": "C",
+      "perspective": "design/ux",
+      "ownerRole": "frontend",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "web/index.html:30-63 无 aria-selected 与方向键导航",
+        "web/styles.css:272-275 focus outline:none 无替代",
+        "docs/acceptance/verdicts/design.md D11"
+      ],
+      "id": "UX-10",
+      "title": "键盘可达性：焦点样式 / tablist 方向键导航 / prefers-reduced-motion",
+      "acceptance": "纯键盘完成 9 视图切换、开 Issue 抽屉、发送留言的完整路径；:focus-visible 焦点环可见；系统开启减弱动效时高亮/脉冲动画降级为静态样式"
+    },
+    {
+      "priority": "P1",
+      "phase": "A",
+      "perspective": "development/core",
+      "ownerRole": "core",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "src/core/tasks.mjs:324-340",
+        "src/core/tasks.mjs:467-539",
+        "src/server/routes.mjs:434-445",
+        "src/server/routes.mjs:485-525",
+        "src/server/routes.mjs:593-607",
+        "docs/acceptance/verdicts/development.md §2.2 内存探针（空 Spec 可冻结 / backlog 直接 done / AC 勾选被伪造）"
+      ],
+      "id": "DEV-01",
+      "title": "封死 Issue 状态机、Spec 与验收绕过并拒绝重复创建覆盖",
+      "acceptance": "空 Spec/未冻结 Spec 的非法启动被拒绝；backlog 不可直接 accept；通用 PUT 不能绕过合法状态迁移；accept 不再无依据自动伪造 AC 勾选；重复 id POST 返回 409 且不修改旧任务；非法 status/priority 返回 400；正反向 REST 与单元测试覆盖"
+    },
+    {
+      "priority": "P1",
+      "phase": "A",
+      "perspective": "development/core",
+      "ownerRole": "core",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "src/core/orchestrator.mjs:741-826",
+        "src/core/orchestrator.mjs:875-905",
+        "src/core/budget.mjs:85-140",
+        "docs/acceptance/verdicts/development.md §2.2 maxTurns=1 并发探针 executions=2"
+      ],
+      "id": "DEV-02",
+      "title": "预算并发预授权与失败轮次记账，恢复硬熔断语义",
+      "acceptance": "同一蜂群多成员并发唤醒时 maxTurns 不被突破；@all 且 maxTurns=1 的回归测试 executions<=1；token/cost 采用可审计的 reservation 或 in-flight 上限策略；失败驱动调用按明确契约计入轮次并持久化；测试覆盖并发、异常与重启恢复"
+    },
+    {
+      "priority": "P1",
+      "phase": "A",
+      "perspective": "development/qa",
+      "ownerRole": "qa",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "scripts/manual-test-run.mjs:112-120",
+        "scripts/manual-test-run.mjs:131-138",
+        "scripts/manual-test-run.mjs:150-180",
+        "scripts/manual-test-run.mjs:197-214",
+        "docs/acceptance/run-record.json:464-468 Worktree 样本为 pm/main",
+        "docs/acceptance/verdicts/testing.md P2-4/P2-7/P2-8（第 9 关恒跳过 / 固定 3s sleep / worldFiles=null）"
+      ],
+      "id": "DEV-03",
+      "title": "补齐 manual-test-run 语义断言并加入故障注入反证（含测试角色 T-04/T-07/T-08）",
+      "acceptance": "断言 health.ok、真实 SSE message、sim-worker 非 main 隔离 Worktree、budget exceeded+专属告警+调度静止、world 文件数与 impact 命中、明确 audit 阈值、插件/连接器数量、dryRun=true+plannedFiles+全目标无写入；依赖 409 校验错误语义；第 9 关 gitlabConfigured 为 true 时不再恒 skip；熔断验证改事件驱动 waitFor（≥15s）；至少 3 个故障注入用例能令对应关卡失败"
+    },
+    {
+      "priority": "P1",
+      "phase": "A",
+      "perspective": "development/qa",
+      "ownerRole": "qa",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "scripts/manual-test-run.mjs:55-59",
+        "scripts/manual-test-run.mjs:99-106",
+        "scripts/manual-test-run.mjs:131-137",
+        "scripts/manual-test-run.mjs:228-240"
+      ],
+      "id": "DEV-04",
+      "title": "manual-test-run 全路径超时与 try/finally 资源清理",
+      "acceptance": "SSE fetch/read 有独立超时且异常时 abort；demo spawn 处理 error；顶层 finally 关闭 server/子进程并清理两个临时根；注入 SSE 无首帧、stage 异常和 close 异常后无残留进程/沙盒，失败记录仍能落盘；Windows 与 POSIX 均验证"
+    },
+    {
+      "priority": "P1",
+      "phase": "A",
+      "perspective": "development/core",
+      "ownerRole": "core",
+      "status": "open",
+      "dependsOn": [
+        "C-02"
+      ],
+      "evidence": [
+        "src/core/tasks.mjs:384-386",
+        "src/core/tasks.mjs:453-461",
+        "src/core/storage.mjs:92-95"
+      ],
+      "id": "DEV-05",
+      "title": "消除任务内存投影与 JSONL 写盘失败后的状态分叉",
+      "acceptance": "注入 mkdir/append 写盘失败后，内存任务、HTTP 结果与重启重放三者一致；失败操作不产生半提交事件；创建与更新路径均有故障注入回归测试，并保持追加式历史不被就地改写"
+    },
+    {
+      "priority": "P2",
+      "phase": "A",
+      "perspective": "development/dx",
+      "ownerRole": "docs",
+      "status": "open",
+      "dependsOn": [
+        "D-02"
+      ],
+      "evidence": [
+        "docs/PROTOCOL.md:109-130 缺 tasks/budget/knowledge/world-model/wiki/audit 端点",
+        "src/server/routes.mjs:401-715",
+        "src/server/routes.mjs:838-928",
+        "src/server/plugin-routes.mjs:70-433",
+        "docs/PROTOCOL.md:114 metrics 鉴权措辞不精确 / :117 缺 seqs 参数"
+      ],
+      "id": "DEV-06",
+      "title": "将 PROTOCOL 补全为可独立实现的 REST API 契约",
+      "acceptance": "补齐 tasks/budget/knowledge/research/logs/world-model/wiki/audit 等端点；每个端点记录方法、路径、查询/请求字段、成功响应字段、400/401/403/404/409/413/429 语义和统一错误结构；说明 seqs 与条件鉴权；契约对照测试防止路由漂移"
+    },
+    {
+      "priority": "P2",
+      "phase": "A",
+      "perspective": "development/backend",
+      "ownerRole": "backend",
+      "status": "open",
+      "dependsOn": [
+        "DEV-01",
+        "DEV-06"
+      ],
+      "evidence": [
+        "src/core/tasks.mjs:324-326",
+        "src/core/tasks.mjs:360-362",
+        "src/core/budget.mjs:32-37（负值转 0 即无限预算）",
+        "src/server/app.mjs:138-143（Error 一律 400）"
+      ],
+      "id": "DEV-07",
+      "title": "统一 API 输入校验、预算数值边界与错误状态码",
+      "acceptance": "非法枚举、非有限数、负数和非整数轮次在边界返回 400，不得静默变成无限预算或默认状态；所有任务动作的不存在统一 404、非法状态迁移统一 409；错误响应结构一致并有 REST 参数矩阵测试"
+    },
+    {
+      "priority": "P2",
+      "phase": "C",
+      "perspective": "development/backend",
+      "ownerRole": "backend",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "src/server/app.mjs:155-163（::1 缺方括号）",
+        "src/server/routes.mjs:23-29（CORS 已考虑 [::1]，两处不一致）"
+      ],
+      "id": "DEV-08",
+      "title": "修正 IPv6 host 的 base URL 格式化并补回环集成测试",
+      "acceptance": "host=::1 时 server.start 返回合法 http://[::1]:port URL，fetch /api/health 成功；IPv4、localhost 与 Windows 现有行为无回归"
+    },
+    {
+      "priority": "P1",
+      "phase": "A",
+      "perspective": "qa",
+      "ownerRole": "qa",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "src/core/worktree.mjs:485/555 越权拦截零用例",
+        "tests/unit/worktree.test.mjs:30 仅 commitChanges 传递覆盖",
+        "docs/acceptance/verdicts/testing.md P1-1"
+      ],
+      "id": "T-01",
+      "title": "补齐 OwnershipGuard.auditChangedFiles 直接回归用例（pushBranch/mergeToBase 越权拦截）",
+      "acceptance": "新增用例覆盖：author 改动 mustNotTouch 路径时，commitChanges/pushBranch/mergeToBase 三条路径均抛拦截且 violations 含 path/reason；verifier 写 src/ 在三条路径全部被拒；npm test 全绿"
+    },
+    {
+      "priority": "P1",
+      "phase": "A",
+      "perspective": "qa",
+      "ownerRole": "qa",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "tests/ 现有 #43 单作者 clean merge、#6 并行异文件 E2E；同文件冲突零用例",
+        "docs/acceptance/verdicts/testing.md P1-2"
+      ],
+      "id": "T-02",
+      "title": "多作者同文件 Worktree 合并冲突回归",
+      "acceptance": "两 author 各自隔离 worktree 修改同一文件，mergeToBase 遇 git 冲突时返回明确冲突错误且任一侧未合并改动不丢失；npm test 全绿"
+    },
+    {
+      "priority": "P1",
+      "phase": "A",
+      "perspective": "qa",
+      "ownerRole": "qa",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "AGENTS.md 提交前验证含 qa:ui；本轮验收未执行",
+        "docs/benchmarks/latest-ui-qa-report.json（2026-11-22T11:07:50Z 零 runtimeErrors）",
+        "docs/acceptance/verdicts/testing.md P1-3"
+      ],
+      "id": "T-03",
+      "title": "qa:ui 纳入验收执行链并归档证据引用",
+      "acceptance": "npm run verify 全量跑通，最新 latest-ui-qa-report.json 时间戳与结论引用写入 docs/acceptance/README.md；或在 README 注明引用 2026-11-22T11:07:50Z 报告并附 web/ 自该报告后未变更的 git 证据"
+    },
+    {
+      "priority": "P2",
+      "phase": "B",
+      "perspective": "qa",
+      "ownerRole": "qa",
+      "status": "open",
+      "dependsOn": [
+        "DEV-07"
+      ],
+      "evidence": [
+        "tests/unit/budget-knowledge-research.test.mjs 仅覆盖 token 熔断主路径",
+        "docs/acceptance/verdicts/testing.md P2-5"
+      ],
+      "id": "T-05",
+      "title": "预算熔断边界用例（等号语义 / maxTurns=0 / 畸形配置）",
+      "acceptance": "覆盖 tokens==maxTokens 等号语义、maxTurns=0、负值/畸形预算配置的校验行为，断言写入 tests/unit/budget-knowledge-research.test.mjs"
+    },
+    {
+      "priority": "P2",
+      "phase": "B",
+      "perspective": "qa",
+      "ownerRole": "qa",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "本机无 docker CLI，第 10 关零执行级证据",
+        "README 引用的「实测路线图」文档不存在；真实 GitLab 逐步补测 SOP 缺失",
+        "docs/acceptance/verdicts/testing.md P2-6"
+      ],
+      "id": "T-06",
+      "title": "Docker 冒烟 + 第 9/10 关人工补测 SOP",
+      "acceptance": "具备 docker 的节点执行 docker build 冒烟并归档日志；HANDOFF §5 或新增实测路线图文档写明第 9/10 关逐步人工补测步骤与预期断言"
+    },
+    {
+      "priority": "P2",
+      "phase": "B",
+      "perspective": "qa",
+      "ownerRole": "qa",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "tests/integration/mcp-server.test.mjs 仅客户端侧 mock 断言（v050:211）",
+        "docs/acceptance/verdicts/testing.md P2-9"
+      ],
+      "id": "T-09",
+      "title": "MCP 工具数漂移断言（真实 YunyuMcpServer tools/list === 37）",
+      "acceptance": "tests/integration/mcp-server.test.mjs 断言真实 YunyuMcpServer tools/list 数量与文档（37）一致"
+    },
+    {
+      "priority": "P2",
+      "phase": "B",
+      "perspective": "qa",
+      "ownerRole": "qa",
+      "status": "open",
+      "dependsOn": [],
+      "evidence": [
+        "UI QA 报告 plugins=3 vs run-record/health pluginCount=2",
+        "docs/acceptance/verdicts/testing.md P2-10"
+      ],
+      "id": "T-10",
+      "title": "插件计数口径统一（health / plugin list / UI QA 报告）",
+      "acceptance": "health / plugin list --json / UI 三处 pluginCount 口径一致，或在文档注明差异原因"
     }
-  ]
+  ],
+  "acceptanceRound": {
+    "date": "2026-11-22",
+    "automated": {
+      "script": "scripts/manual-test-run.mjs",
+      "result": "pass=9 fail=0 skip=2（第 9/10 关环境性跳过）",
+      "record": "docs/acceptance/run-record.json"
+    },
+    "multiModelVerdicts": [
+      {
+        "role": "architect",
+        "model": "DeepSeek-V4-Pro",
+        "verdict": "有条件通过",
+        "counts": "P0=6 P1=13 P2=6",
+        "file": "docs/acceptance/verdicts/architecture.md"
+      },
+      {
+        "role": "design",
+        "model": "GLM-5.3",
+        "verdict": "有条件通过",
+        "counts": "P0=2 P1=5 P2=5",
+        "file": "docs/acceptance/verdicts/design.md"
+      },
+      {
+        "role": "development",
+        "model": "Kimi-K3.1-Pro",
+        "verdict": "有条件通过（限第 0–8 关离线冒烟范围）",
+        "counts": "既有P0=3 新增P1=5 新增P2=3",
+        "file": "docs/acceptance/verdicts/development.md"
+      },
+      {
+        "role": "testing",
+        "model": "Step-5-Preview",
+        "verdict": "有条件通过",
+        "counts": "P0=0 P1=3 P2=7",
+        "file": "docs/acceptance/verdicts/testing.md"
+      }
+    ],
+    "newItems": [
+      "V-01",
+      "V-02",
+      "UX-01",
+      "UX-02",
+      "UX-03",
+      "UX-04",
+      "UX-05",
+      "UX-06",
+      "UX-07",
+      "UX-08",
+      "UX-09",
+      "UX-10",
+      "DEV-01",
+      "DEV-02",
+      "DEV-03",
+      "DEV-04",
+      "DEV-05",
+      "DEV-06",
+      "DEV-07",
+      "DEV-08",
+      "T-01",
+      "T-02",
+      "T-03",
+      "T-05",
+      "T-06",
+      "T-09",
+      "T-10"
+    ],
+    "dedup": "测试角色 T-04/T-07/T-08 与开发角色 DEV-03 语义重合，已并入 DEV-03；其余既有 backlog 原 id 不重复建单",
+    "closureReport": "docs/acceptance/closure-report.md",
+    "orchestration": "docs/acceptance/orchestration.json"
+  }
 }

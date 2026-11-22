@@ -115,8 +115,23 @@ curl -s -H "Authorization: Bearer $YUNYU_API_TOKEN" http://127.0.0.1:4310/api/me
 
 ## 6. 下一阶段演进路线图（唯一事实源：backlog.json）
 
-> 📋 **本节不再手工维护待办状态**（待办 D-06 已收敛）。全部演进规划以 [docs/review/backlog.json](review/backlog.json) 为**唯一结构化事实源**：39 项待办，含 ID / 优先级 / 证据 / 验收标准 / 依赖 / 所有权角色，可直接派生 Qoder Issue 供 Agent 认领；状态变更只更新 backlog.json 与 [03 路线图](review/03-enterprise-roadmap.md) 表格。
+> 📋 **本节不再手工维护待办状态**（待办 D-06 已收敛）。全部演进规划以 [docs/review/backlog.json](review/backlog.json) 为**唯一结构化事实源**：66 项待办（含 2026-11-22 多模型闭环验收轮新增 27 项，见 `acceptanceRound` 元数据块），含 ID / 优先级 / 证据 / 验收标准 / 依赖 / 所有权角色，可直接派生 Qoder Issue 供 Agent 认领；状态变更只更新 backlog.json 与 [03 路线图](review/03-enterprise-roadmap.md) 表格。
 
 - **讨论入口**：[docs/review/README.md](review/README.md)（架构基线 01 · 文档对比 02 · 多视角批判与四阶段路线图 03 · 企业 PM 对标 04）。
 - **历史 v0.6.0 散文路线图映射**（仅供追溯）：GitHub 双向联动 → `X-01`；自动双语译文 Hook 与 LLM 流式推送 → `X-02`；多仓库联邦世界模型 → `X-03`；容器化与一键自托管部署 → ✅ 已于 v0.5.1 交付（见 §5）。
 - **实施前提**：P0 信任缺口优先（阶段 A），战略方向待决策门 D1–D5 拍板（见 03 §5）；D6/G-01（Genie 附件对比）经用户决定跳过，文件补充后可重启。
+
+---
+
+## 7. 验收档案归档（2026-11-22 自动化实测 + 多模型闭环验收轮）
+
+全部环节记录归档于 [docs/acceptance/](acceptance/)，后续会话与 Agent 验收时直接引用：
+
+| 环节 | 记录文件 | 关键结论 |
+| :--- | :--- | :--- |
+| 自动化实测（10 阶段） | [acceptance/run-record.json](acceptance/run-record.json) + [acceptance/README.md](acceptance/README.md) | 第三轮 pass=9 / fail=0 / skip=2（第 9/10 关环境性跳过）；脚本 `scripts/manual-test-run.mjs` 可重复执行 |
+| 多模型编排 | [acceptance/orchestration.json](acceptance/orchestration.json) | 架构=DeepSeek-V4-Pro · 设计=GLM-5.3 · 开发=Kimi-K3.1-Pro · 测试=Step-5-Preview（四角色四模型，只读评审） |
+| 四角色验收结论 | [acceptance/verdicts/](acceptance/verdicts/)（architecture / design / development / testing） | 均「有条件通过」；六不变量全部文件级实证落地；三门禁独立重跑全绿 |
+| 闭环汇总与待办整合 | [acceptance/closure-report.md](acceptance/closure-report.md) | 跨角色交叉印证 + 27 条新待办并入 backlog（39→66）；企业级发布门槛清单 |
+
+**高优先新发现（实施前必读）**：DEV-01 Issue 状态机/Spec/验收门禁可绕过（内存探针已复现）；DEV-02 预算并发竞态（maxTurns=1 实际执行 2 次）；UX-01 i18n 双语切换大面积失效（P0）；UX-02 不可逆操作无二次确认（P0）。修复顺序建议：先 DEV-01/DEV-02，再增强 DEV-03 实测断言，否则绿色实测可能掩盖门禁回归。
